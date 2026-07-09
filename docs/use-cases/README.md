@@ -5,6 +5,9 @@ devices to a **KNX** building-automation bus. Its **primary purpose** is to expo
 as KNX group objects so they can be controlled from — and report their state back to — a KNX
 installation. It also exposes a secondary **REST/WebSocket API** for other clients.
 
+> **MVP scope:** see [PRD-MVP.md](../PRD-MVP.md) — a KNX bridge for statically-configured Wind Calm
+> devices (no LAN discovery, no cloud, no REST/WebSocket).
+
 Tuya devices are controlled **locally over the LAN** (Tuya local protocol, using each device's
 local key) — there is no dependency on the Tuya Cloud for day-to-day operation.
 
