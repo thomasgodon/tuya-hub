@@ -1,7 +1,10 @@
+using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TuyaHub.Application.Abstractions;
 using TuyaHub.Domain;
+using TuyaHub.Domain.Events;
+using TuyaHub.Infrastructure.Knx;
 using TuyaHub.Infrastructure.Options;
 using TuyaHub.Infrastructure.Tuya;
 
@@ -11,9 +14,9 @@ public static class DependencyInjection
 {
     /// <summary>
     /// Registers the infrastructure layer: options binding (KNX / Tuya / device mappings), the
-    /// config-backed device registry, and the Tuya ACL (connection manager, gateway, and the
-    /// supervisor that owns the persistent per-device connections). The KNX ACL is wired here too
-    /// once it exists; for now only the Tuya side is composed.
+    /// config-backed device registry, the Tuya ACL (connection manager, gateway, and the supervisor
+    /// that owns the persistent per-device connections), and the KNX ACL (the bridge, its connection
+    /// supervisor, and the event handlers that mirror device state to the status group addresses).
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -29,6 +32,21 @@ public static class DependencyInjection
         services.AddSingleton<TuyaConnectionManager>();
         services.AddSingleton<IDeviceGateway, TuyaDeviceGateway>();
         services.AddHostedService<TuyaConnectionSupervisor>();
+
+        // KNX ACL (outbound / feedback path): the bridge owns the connection and status cache; its
+        // supervisor opens the connection at startup; the handlers translate domain events to status
+        // writes. Registered explicitly per event type (MediatR dispatches on the concrete type), as
+        // DsmrHub registers its sink handlers. Light CCT (M6) has no handler here.
+        services.AddSingleton<KnxBridge>();
+        services.AddHostedService<KnxConnectionSupervisor>();
+        services.AddSingleton<INotificationHandler<FanPowerChanged>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<FanSpeedChanged>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<FanDirectionChanged>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<FanTimerChanged>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<LightPowerChanged>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<LightBrightnessChanged>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<DeviceWentOffline>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<DeviceReconnected>, DeviceEventKnxHandler>();
 
         return services;
     }

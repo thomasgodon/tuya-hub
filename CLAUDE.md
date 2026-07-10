@@ -2,12 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repository status: specification only
+## Repository status: implementation in progress (M1–M3 done)
 
-There is **no application code yet**. This repo currently contains only planning/specification
-documents (a PRD and use cases) for a not-yet-built C# app. The `.gitignore` is the standard
-Visual Studio one, in place for the future solution. When implementing, follow the PRD's declared
-architecture and milestones rather than inventing your own.
+The solution exists (4 projects + tests, per the PRD architecture). Completed milestones:
+- **M1** — scaffold, options binding (`KnxOptions` / `TuyaOptions` / `DeviceMappingOptions`), DI wiring.
+- **M2** — Tuya local client (`Infrastructure/Tuya/`): persistent 3.3 socket per device on TuyaNet,
+  heartbeat, background reconnect, pushed-STATUS read loop + interval poll → `DeviceReport` → aggregate.
+- **M3** — KNX outbound / feedback path (`Infrastructure/Knx/`): domain events → status GA writes,
+  `GroupValueRead` answered from the last known value, redundant-write dedup. **Light CCT status is
+  deliberately excluded from M3 and deferred to M6.** No `IKnxBus` port yet (introduce in M4 if needed).
+
+Next: **M4 — KNX inbound (commands)**: command-GA → aggregate command → Tuya, incl. the dim-step
+state machine. When implementing, follow the PRD's declared architecture and milestones rather than
+inventing your own.
 
 **Read first, always:** `docs/PRD-MVP.md` is the source of truth for what to build. It resolves
 every major design decision (Tuya client library, KNX transport, CCT scope, REST/WS scope) — do not
