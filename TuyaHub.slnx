@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="TuyaHub/TuyaHub.csproj" />
+  <Project Path="TuyaHub.Application/TuyaHub.Application.csproj" />
+  <Project Path="TuyaHub.Domain/TuyaHub.Domain.csproj" />
+  <Project Path="TuyaHub.Infrastructure/TuyaHub.Infrastructure.csproj" />
+  <Project Path="TuyaHub.Tests/TuyaHub.Tests.csproj" />
+</Solution>
