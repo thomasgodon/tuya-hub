@@ -51,17 +51,16 @@ public class KnxBridgeMappingTests
     }
 
     [Fact]
-    public void Cct_status_is_not_mapped_deferred_to_m6()
+    public void Cct_status_is_mapped()
     {
         var store = KnxBridge.BuildStore(new DeviceMappingOptions
         {
             ["Fan"] = new DeviceMapping
             {
-                LightCctStatus = "1/1/14", // configured, but must be ignored in M3
+                LightCctStatus = "1/1/14",
             },
         });
 
-        Assert.Empty(store);
-        Assert.DoesNotContain(store.Values, v => v.Address == GroupAddress.Parse("1/1/14"));
+        Assert.Equal(GroupAddress.Parse("1/1/14"), store[(Fan, Capability.LightCct)].Address);
     }
 }

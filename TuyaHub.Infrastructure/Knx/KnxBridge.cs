@@ -282,7 +282,7 @@ internal sealed class KnxBridge : IAsyncDisposable
         return store;
     }
 
-    // Status GAs only; command GAs are handled by BuildCommandBindings and Light CCT (M6) is excluded.
+    // Status GAs only; command GAs are handled by BuildCommandBindings.
     private static IEnumerable<(Capability, string)> StatusAddresses(DeviceMapping m)
     {
         yield return (Capability.FanPower, m.FanPowerStatus);
@@ -291,6 +291,7 @@ internal sealed class KnxBridge : IAsyncDisposable
         yield return (Capability.FanTimer, m.FanTimerStatus);
         yield return (Capability.LightPower, m.LightPowerStatus);
         yield return (Capability.LightBrightness, m.LightBrightnessStatus);
+        yield return (Capability.LightCct, m.LightCctStatus);
         yield return (Capability.Availability, m.AvailabilityStatus);
     }
 
@@ -316,7 +317,7 @@ internal sealed class KnxBridge : IAsyncDisposable
         return bindings;
     }
 
-    // Command GAs only; the Light CCT command (M6) is intentionally excluded.
+    // Command GAs only.
     private static IEnumerable<(CommandCapability, string)> CommandAddresses(DeviceMapping m)
     {
         yield return (CommandCapability.FanPower, m.FanPowerCommand);
@@ -325,6 +326,7 @@ internal sealed class KnxBridge : IAsyncDisposable
         yield return (CommandCapability.FanTimer, m.FanTimerCommand);
         yield return (CommandCapability.LightPower, m.LightPowerCommand);
         yield return (CommandCapability.LightBrightness, m.LightBrightnessCommand);
+        yield return (CommandCapability.LightCct, m.LightCctCommand);
     }
 
     public async ValueTask DisposeAsync()

@@ -28,6 +28,7 @@ internal static class KnxCommandTranslator
             CommandCapability.FanTimer => new SetFanTimerCommand(device, KnxDpt.DecodeMinutes(payload)),
             CommandCapability.LightPower => new SetLightPowerCommand(device, KnxDpt.DecodeBool(payload)),
             CommandCapability.LightBrightness => new SetLightBrightnessCommand(device, KnxDpt.DecodePercent(payload)),
+            CommandCapability.LightCct => new SetLightCctCommand(device, KnxDpt.DecodePercent(payload)),
             _ => null,
         };
     }

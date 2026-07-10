@@ -7,8 +7,6 @@ namespace TuyaHub.Infrastructure.Knx;
 /// Translates domain state-change events into KNX status writes (the Tuya → KNX feedback path). One
 /// handler covers every in-scope event; each <c>Handle</c> maps the event to a capability + encoded
 /// value and hands it to the <see cref="KnxBridge"/>, which owns dedup, caching and the bus write.
-///
-/// <see cref="LightCctChanged"/> is intentionally not handled — colour temperature is deferred to M6.
 /// </summary>
 internal sealed class DeviceEventKnxHandler(KnxBridge bridge) :
     INotificationHandler<FanPowerChanged>,
@@ -17,6 +15,7 @@ internal sealed class DeviceEventKnxHandler(KnxBridge bridge) :
     INotificationHandler<FanTimerChanged>,
     INotificationHandler<LightPowerChanged>,
     INotificationHandler<LightBrightnessChanged>,
+    INotificationHandler<LightCctChanged>,
     INotificationHandler<DeviceWentOffline>,
     INotificationHandler<DeviceReconnected>
 {
@@ -37,6 +36,9 @@ internal sealed class DeviceEventKnxHandler(KnxBridge bridge) :
 
     public Task Handle(LightBrightnessChanged n, CancellationToken ct)
         => bridge.PublishAsync(n.Device, Capability.LightBrightness, KnxDpt.Percent(n.Brightness.ToPercent()), ct);
+
+    public Task Handle(LightCctChanged n, CancellationToken ct)
+        => bridge.PublishAsync(n.Device, Capability.LightCct, KnxDpt.Percent(n.ColourTemperature.ToPercent()), ct);
 
     public Task Handle(DeviceWentOffline n, CancellationToken ct)
         => bridge.PublishAsync(n.Device, Capability.Availability, KnxDpt.Bool(false), ct);

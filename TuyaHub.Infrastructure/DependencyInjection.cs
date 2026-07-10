@@ -36,7 +36,7 @@ public static class DependencyInjection
         // KNX ACL (outbound / feedback path): the bridge owns the connection and status cache; its
         // supervisor opens the connection at startup; the handlers translate domain events to status
         // writes. Registered explicitly per event type (MediatR dispatches on the concrete type), as
-        // DsmrHub registers its sink handlers. Light CCT (M6) has no handler here.
+        // DsmrHub registers its sink handlers.
         services.AddSingleton<KnxBridge>();
         services.AddHostedService<KnxConnectionSupervisor>();
         services.AddSingleton<INotificationHandler<FanPowerChanged>, DeviceEventKnxHandler>();
@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddSingleton<INotificationHandler<FanTimerChanged>, DeviceEventKnxHandler>();
         services.AddSingleton<INotificationHandler<LightPowerChanged>, DeviceEventKnxHandler>();
         services.AddSingleton<INotificationHandler<LightBrightnessChanged>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<LightCctChanged>, DeviceEventKnxHandler>();
         services.AddSingleton<INotificationHandler<DeviceWentOffline>, DeviceEventKnxHandler>();
         services.AddSingleton<INotificationHandler<DeviceReconnected>, DeviceEventKnxHandler>();
 

@@ -2,20 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repository status: implementation in progress (M1–M5 done)
+## Repository status: MVP complete (M1–M6 done)
 
 The solution exists (4 projects + tests, per the PRD architecture). Completed milestones:
 - **M1** — scaffold, options binding (`KnxOptions` / `TuyaOptions` / `DeviceMappingOptions`), DI wiring.
 - **M2** — Tuya local client (`Infrastructure/Tuya/`): persistent 3.3 socket per device on TuyaNet,
   heartbeat, background reconnect, pushed-STATUS read loop + interval poll → `DeviceReport` → aggregate.
 - **M3** — KNX outbound / feedback path (`Infrastructure/Knx/`): domain events → status GA writes,
-  `GroupValueRead` answered from the last known value, redundant-write dedup. **Light CCT status is
-  deliberately excluded from M3 and deferred to M6.**
+  `GroupValueRead` answered from the last known value, redundant-write dedup. (Light CCT status was
+  originally excluded here and landed in M6.)
 - **M4** — KNX inbound / command path (`Infrastructure/Knx/`): inbound `GroupValueWrite` on a mapped
   command GA → decoded (`KnxDpt` decoders) → routed via `BuildCommandBindings` → `KnxCommandTranslator`
   builds the existing Application command record → dispatched through MediatR `ISender` to the aggregate
-  → Tuya `CONTROL`. Fan speed uses the DPT 3.007 dim-step (±1 level, break ignored). **Light CCT command
-  is deferred to M6.** No `IKnxBus` port — the ACL dispatches inward via MediatR (matching M3's shape).
+  → Tuya `CONTROL`. Fan speed uses the DPT 3.007 dim-step (±1 level, break ignored). (Light CCT command
+  was originally deferred here and landed in M6.) No `IKnxBus` port — the ACL dispatches inward via
+  MediatR (matching M3's shape).
 - **M5** — multi-device isolation + robust reconnect/backoff. Per-device isolation and Tuya exponential
   backoff already existed from M2; M5 hardened them: (1) a Tuya **liveness watchdog** (`TuyaConnection`)
   force-reconnects a stalled/half-open socket when no inbound byte arrives within `LivenessTimeoutSeconds`
@@ -29,9 +30,18 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   (`ReconnectInitial/MaxBackoffSeconds`) tunables; the socket/bus loops stay manual-verified, backoff and
   `Device` connectivity transitions are unit-tested.
 
-Next: **M6 — Light CCT** (DP 23, 3-step, flicker-mitigated — status *and* command, currently deferred)
-**and general hardening**. When implementing, follow the PRD's declared architecture and milestones
-rather than inventing your own.
+- **M6** — Light CCT (`Infrastructure/Knx/`): DP 23 (`temp_value`, 3 steps 0/500/1000) wired to KNX on
+  both the status and command paths, reusing the `LightBrightness` capability shape (DPT **5.001 %**,
+  the shared `KnxDpt.Percent`/`DecodePercent`). Domain/Application/Tuya-ACL support already existed;
+  M6 was purely the KNX-ACL wiring — added `Capability.LightCct` / `CommandCapability.LightCct`, the
+  `StatusAddresses`/`CommandAddresses` yields, the `DeviceEventKnxHandler.Handle(LightCctChanged)` +
+  its explicit DI registration, and the `KnxCommandTranslator` arm. Flicker mitigation (write DP 23
+  only on an actual step change) lives in `Device.SetLightColourTemperature`; status is only ever
+  published from authoritative device readback, so the resulting step (not the requested one) reaches
+  KNX. Per-device disable via an empty GA still applies.
+
+The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
+declared architecture and milestones rather than inventing your own.
 
 **Read first, always:** `docs/PRD-MVP.md` is the source of truth for what to build. It resolves
 every major design decision (Tuya client library, KNX transport, CCT scope, REST/WS scope) — do not

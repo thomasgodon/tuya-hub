@@ -52,18 +52,17 @@ public class KnxBridgeCommandMappingTests
     }
 
     [Fact]
-    public void Cct_command_is_not_mapped_deferred_to_m6()
+    public void Cct_command_is_mapped()
     {
         var bindings = KnxBridge.BuildCommandBindings(new DeviceMappingOptions
         {
             ["Fan"] = new DeviceMapping
             {
-                LightCctCommand = "1/1/13", // configured, but must be ignored until M6
+                LightCctCommand = "1/1/13",
             },
         });
 
-        Assert.Empty(bindings);
-        Assert.False(bindings.ContainsKey(GroupAddress.Parse("1/1/13")));
+        Assert.Equal(new KnxCommandBinding(Fan, CommandCapability.LightCct), bindings[GroupAddress.Parse("1/1/13")]);
     }
 
     [Fact]
