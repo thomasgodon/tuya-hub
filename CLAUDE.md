@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repository status: implementation in progress (M1–M4 done)
+## Repository status: implementation in progress (M1–M5 done)
 
 The solution exists (4 projects + tests, per the PRD architecture). Completed milestones:
 - **M1** — scaffold, options binding (`KnxOptions` / `TuyaOptions` / `DeviceMappingOptions`), DI wiring.
@@ -16,9 +16,22 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   builds the existing Application command record → dispatched through MediatR `ISender` to the aggregate
   → Tuya `CONTROL`. Fan speed uses the DPT 3.007 dim-step (±1 level, break ignored). **Light CCT command
   is deferred to M6.** No `IKnxBus` port — the ACL dispatches inward via MediatR (matching M3's shape).
+- **M5** — multi-device isolation + robust reconnect/backoff. Per-device isolation and Tuya exponential
+  backoff already existed from M2; M5 hardened them: (1) a Tuya **liveness watchdog** (`TuyaConnection`)
+  force-reconnects a stalled/half-open socket when no inbound byte arrives within `LivenessTimeoutSeconds`
+  (UC-09 step 1 — not just TCP errors); (2) **KNX robust reconnect** — `KnxConnectionSupervisor` now runs a
+  supervised connect→`WaitForDropAsync`→backoff loop (driven by `KnxBus.ConnectionStateChanged`), so a
+  dropped bus re-attaches the inbound `GroupMessageReceived` subscription and the KNX→Tuya command path
+  self-heals (previously it stayed dead until the next outbound write); (3) a shared, **jittered**
+  `Infrastructure/Resilience/BackoffPolicy` used by both supervisors; (4) `TuyaConnectionSupervisor`
+  guards each device's loop so one unexpected fault can't stop the host (FR-10). New `TuyaOptions`
+  (`LivenessTimeoutSeconds`, `ConnectTimeoutSeconds`, `ReconnectInitial/MaxBackoffSeconds`) and `KnxOptions`
+  (`ReconnectInitial/MaxBackoffSeconds`) tunables; the socket/bus loops stay manual-verified, backoff and
+  `Device` connectivity transitions are unit-tested.
 
-Next: **M5 — multi-device isolation + robust reconnect/backoff**. When implementing, follow the PRD's
-declared architecture and milestones rather than inventing your own.
+Next: **M6 — Light CCT** (DP 23, 3-step, flicker-mitigated — status *and* command, currently deferred)
+**and general hardening**. When implementing, follow the PRD's declared architecture and milestones
+rather than inventing your own.
 
 **Read first, always:** `docs/PRD-MVP.md` is the source of truth for what to build. It resolves
 every major design decision (Tuya client library, KNX transport, CCT scope, REST/WS scope) — do not

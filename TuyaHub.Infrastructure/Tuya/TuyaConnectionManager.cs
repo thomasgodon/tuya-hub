@@ -22,13 +22,20 @@ internal sealed class TuyaConnectionManager
         var tuya = options.Value;
         var pollInterval = TimeSpan.FromSeconds(Math.Max(1, tuya.PollIntervalSeconds));
         var heartbeatInterval = TimeSpan.FromSeconds(Math.Max(1, tuya.HeartbeatIntervalSeconds));
+        // The watchdog is only meaningful if it outlasts a heartbeat cycle, so floor it above the heartbeat.
+        var livenessTimeout = TimeSpan.FromSeconds(Math.Max(tuya.LivenessTimeoutSeconds, tuya.HeartbeatIntervalSeconds + 1));
+        var connectTimeout = TimeSpan.FromSeconds(Math.Max(1, tuya.ConnectTimeoutSeconds));
+        var backoffInitial = TimeSpan.FromSeconds(Math.Max(1, tuya.ReconnectInitialBackoffSeconds));
+        var backoffMax = TimeSpan.FromSeconds(Math.Max(tuya.ReconnectMaxBackoffSeconds, tuya.ReconnectInitialBackoffSeconds));
         var logger = loggerFactory.CreateLogger(typeof(TuyaConnection).FullName!);
 
         _connections = new Dictionary<DeviceName, TuyaConnection>();
         foreach (var device in tuya.Devices.Where(d => d.Enabled))
         {
             var name = DeviceName.Create(device.Name);
-            _connections[name] = new TuyaConnection(name, device, pollInterval, heartbeatInterval, ingestion, logger);
+            _connections[name] = new TuyaConnection(
+                name, device, pollInterval, heartbeatInterval, livenessTimeout, connectTimeout,
+                backoffInitial, backoffMax, ingestion, logger);
         }
     }
 

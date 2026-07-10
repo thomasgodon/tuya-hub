@@ -12,6 +12,22 @@ public sealed class TuyaOptions
     /// <summary>How often a heartbeat is sent to keep the persistent socket alive (module drops idle sockets ~30 s).</summary>
     public int HeartbeatIntervalSeconds { get; set; } = 10;
 
+    /// <summary>
+    /// Liveness watchdog (M5): if no inbound bytes (STATUS push, poll reply, or heartbeat ack) arrive
+    /// within this window, the connection is treated as dead and force-reconnected. Must exceed
+    /// <see cref="HeartbeatIntervalSeconds"/>; ≈ the module's ~30 s idle-drop.
+    /// </summary>
+    public int LivenessTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>TCP connect timeout per attempt.</summary>
+    public int ConnectTimeoutSeconds { get; set; } = 5;
+
+    /// <summary>Reconnect backoff: first (and post-success) delay before retrying a dropped device.</summary>
+    public int ReconnectInitialBackoffSeconds { get; set; } = 1;
+
+    /// <summary>Reconnect backoff: upper cap the exponential delay doubles toward.</summary>
+    public int ReconnectMaxBackoffSeconds { get; set; } = 30;
+
     public List<TuyaDeviceOptions> Devices { get; set; } = [];
 }
 

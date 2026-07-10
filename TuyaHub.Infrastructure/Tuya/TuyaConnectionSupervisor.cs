@@ -20,6 +20,27 @@ internal sealed class TuyaConnectionSupervisor(TuyaConnectionManager manager, IL
         }
 
         logger.LogInformation("Starting {Count} Tuya device connection(s).", connections.Count);
-        await Task.WhenAll(connections.Select(c => c.RunAsync(stoppingToken)));
+        await Task.WhenAll(connections.Select(c => RunGuardedAsync(c, stoppingToken)));
+    }
+
+    /// <summary>
+    /// Isolates one device's supervision loop (FR-10): <see cref="TuyaConnection.RunAsync"/> already
+    /// handles its own reconnects, but should it ever throw unexpectedly, swallowing it here keeps the
+    /// fault from faulting <see cref="Task.WhenAll"/> and tearing down the host and every other device.
+    /// </summary>
+    private async Task RunGuardedAsync(TuyaConnection connection, CancellationToken stoppingToken)
+    {
+        try
+        {
+            await connection.RunAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Normal shutdown.
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Tuya device {Device} supervision loop terminated unexpectedly.", connection.Name);
+        }
     }
 }

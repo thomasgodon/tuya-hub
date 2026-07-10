@@ -32,6 +32,9 @@ internal sealed class KnxBridge : IAsyncDisposable
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private KnxBus? _bus;
 
+    /// <summary>Completes when the current bus drops; recreated on each successful connect (M5 reconnect signal).</summary>
+    private TaskCompletionSource _dropSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public KnxBridge(
         IOptions<KnxOptions> options,
         IOptions<DeviceMappingOptions> mappings,
@@ -52,8 +55,8 @@ internal sealed class KnxBridge : IAsyncDisposable
     /// <summary>
     /// Establishes the tunnelling connection and subscribes to group messages, so read requests are
     /// answerable before the first status write and command writes are received from startup. No-op
-    /// when the bus is disabled. Robust reconnect/backoff is M5; here a dropped connection is
-    /// re-established lazily on the next write/respond.
+    /// when the bus is disabled. <see cref="KnxConnectionSupervisor"/> drives robust reconnect (M5) by
+    /// calling this after each <see cref="WaitForDropAsync"/>; writes/responds also re-establish it lazily.
     /// </summary>
     public Task ConnectAsync(CancellationToken cancellationToken)
     {
@@ -118,6 +121,12 @@ internal sealed class KnxBridge : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Completes when the current KNX connection drops (state leaves <see cref="BusConnectionState.Connected"/>),
+    /// or is cancelled on shutdown. The supervisor awaits this, then reconnects with backoff (M5).
+    /// </summary>
+    public Task WaitForDropAsync(CancellationToken cancellationToken) => _dropSignal.Task.WaitAsync(cancellationToken);
+
     private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
     {
         if (_bus?.ConnectionState == BusConnectionState.Connected)
@@ -133,6 +142,9 @@ internal sealed class KnxBridge : IAsyncDisposable
                 return;
             }
 
+            // Tear down a stale/broken bus before opening a fresh one — never hold two sockets.
+            await DisposeBusAsync();
+
             var bus = new KnxBus(new IpTunnelingConnectorParameters(_options.Host, _options.Port));
             bus.GroupMessageReceived += OnGroupMessageReceived;
 
@@ -140,6 +152,10 @@ internal sealed class KnxBridge : IAsyncDisposable
             await bus.ConnectAsync(cancellationToken);
             await bus.SetInterfaceConfigurationAsync(
                 new BusInterfaceConfiguration(IndividualAddress.Parse(_options.IndividualAddress)), cancellationToken);
+
+            // Fresh drop signal for this connection, then start watching for drops.
+            _dropSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            bus.ConnectionStateChanged += OnConnectionStateChanged;
             _bus = bus;
             _logger.LogInformation("Connected to KNX interface {Host}:{Port}.", _options.Host, _options.Port);
         }
@@ -147,6 +163,37 @@ internal sealed class KnxBridge : IAsyncDisposable
         {
             _connectGate.Release();
         }
+    }
+
+    private void OnConnectionStateChanged(object? sender, EventArgs e)
+    {
+        // Keyed off the sender (not _bus) to avoid racing the _bus assignment inside EnsureConnectedAsync.
+        if (sender is KnxBus bus && bus.ConnectionState != BusConnectionState.Connected)
+        {
+            _logger.LogWarning("KNX bus dropped (state {State}); reconnect pending.", bus.ConnectionState);
+            _dropSignal.TrySetResult();
+        }
+    }
+
+    private async Task DisposeBusAsync()
+    {
+        if (_bus is null)
+        {
+            return;
+        }
+
+        _bus.GroupMessageReceived -= OnGroupMessageReceived;
+        _bus.ConnectionStateChanged -= OnConnectionStateChanged;
+        try
+        {
+            await _bus.DisposeAsync();
+        }
+        catch
+        {
+            // best-effort teardown
+        }
+
+        _bus = null;
     }
 
     private async void OnGroupMessageReceived(object? sender, GroupEventArgs e)
@@ -282,12 +329,7 @@ internal sealed class KnxBridge : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_bus is not null)
-        {
-            _bus.GroupMessageReceived -= OnGroupMessageReceived;
-            await _bus.DisposeAsync();
-        }
-
+        await DisposeBusAsync();
         _connectGate.Dispose();
     }
 }

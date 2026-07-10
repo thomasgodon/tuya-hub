@@ -7,6 +7,7 @@ using TuyaHub.Application.Abstractions;
 using TuyaHub.Domain;
 using TuyaHub.Domain.ValueObjects;
 using TuyaHub.Infrastructure.Options;
+using TuyaHub.Infrastructure.Resilience;
 
 namespace TuyaHub.Infrastructure.Tuya;
 
@@ -18,7 +19,9 @@ namespace TuyaHub.Infrastructure.Tuya;
 /// <item>a <b>heartbeat</b> to keep the module from dropping the idle socket (~30 s);</item>
 /// <item>a continuous <b>read loop</b> that decodes unsolicited STATUS pushes into domain reports;</item>
 /// <item>a <b>poll loop</b> (DP_QUERY) as the backstop for RF-remote changes that do not push;</item>
-/// <item><b>reconnect with backoff</b>, keeping exactly one socket per device (the module allows only ~3).</item>
+/// <item>a <b>liveness watchdog</b> that force-reconnects a stalled/half-open socket when no inbound
+/// bytes arrive within <c>livenessTimeout</c> (UC-09 step 1 — heartbeat/poll silence, not just a TCP error);</item>
+/// <item><b>reconnect with jittered backoff</b>, keeping exactly one socket per device (the module allows only ~3).</item>
 /// </list>
 /// </summary>
 internal sealed class TuyaConnection(
@@ -26,10 +29,17 @@ internal sealed class TuyaConnection(
     TuyaDeviceOptions options,
     TimeSpan pollInterval,
     TimeSpan heartbeatInterval,
+    TimeSpan livenessTimeout,
+    TimeSpan connectTimeout,
+    TimeSpan backoffInitial,
+    TimeSpan backoffMax,
     IDeviceStateIngestionService ingestion,
     ILogger logger)
 {
     private static readonly byte[] FramePrefix = [0x00, 0x00, 0x55, 0xAA];
+
+    /// <summary>Monotonic timestamp (ms) of the last inbound byte; drives the liveness watchdog.</summary>
+    private long _lastInboundTicks;
 
     private readonly TuyaDevice _codec = new(
         options.IpAddress,
@@ -52,8 +62,7 @@ internal sealed class TuyaConnection(
     /// <summary>Supervises the connection for the app lifetime: connect, run the loops, reconnect on failure.</summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        var backoff = TimeSpan.FromSeconds(1);
-        var maxBackoff = TimeSpan.FromSeconds(30);
+        var backoff = new BackoffPolicy(backoffInitial, backoffMax);
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -62,7 +71,8 @@ internal sealed class TuyaConnection(
                 await ConnectAsync(cancellationToken);
                 logger.LogInformation("Connected to Tuya device {Device} at {Ip}.", name, options.IpAddress);
                 await ingestion.ReportConnectivityAsync(name, online: true, cancellationToken);
-                backoff = TimeSpan.FromSeconds(1);
+                backoff.Reset();
+                _lastInboundTicks = Environment.TickCount64;
 
                 // Full state sync on (re)connect so the KNX status GAs are correct immediately.
                 await SendQueryAsync(cancellationToken);
@@ -71,10 +81,11 @@ internal sealed class TuyaConnection(
                 var read = ReadLoopAsync(loopCts.Token);
                 var heartbeat = HeartbeatLoopAsync(loopCts.Token);
                 var poll = PollLoopAsync(loopCts.Token);
+                var watchdog = WatchdogLoopAsync(loopCts.Token);
 
-                await Task.WhenAny(read, heartbeat, poll);
+                await Task.WhenAny(read, heartbeat, poll, watchdog);
                 await loopCts.CancelAsync();
-                await Task.WhenAll(Swallow(read), Swallow(heartbeat), Swallow(poll));
+                await Task.WhenAll(Swallow(read), Swallow(heartbeat), Swallow(poll), Swallow(watchdog));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -95,18 +106,17 @@ internal sealed class TuyaConnection(
             }
 
             await ingestion.ReportConnectivityAsync(name, online: false, CancellationToken.None);
-            logger.LogInformation("Tuya device {Device} offline; reconnecting in {Backoff}s.", name, backoff.TotalSeconds);
+            var delay = backoff.Next();
+            logger.LogInformation("Tuya device {Device} offline; reconnecting in {Backoff:0.#}s.", name, delay.TotalSeconds);
 
             try
             {
-                await Task.Delay(backoff, cancellationToken);
+                await Task.Delay(delay, cancellationToken);
             }
             catch (OperationCanceledException)
             {
                 break;
             }
-
-            backoff = TimeSpan.FromSeconds(Math.Min(maxBackoff.TotalSeconds, backoff.TotalSeconds * 2));
         }
 
         CloseSocket();
@@ -137,7 +147,7 @@ internal sealed class TuyaConnection(
     {
         var client = new TcpClient();
         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        connectCts.CancelAfter(TimeSpan.FromSeconds(5));
+        connectCts.CancelAfter(connectTimeout);
 
         await client.ConnectAsync(options.IpAddress, options.Port, connectCts.Token);
 
@@ -185,6 +195,8 @@ internal sealed class TuyaConnection(
                 throw new IOException($"Tuya device {name} closed the connection.");
             }
 
+            // Any inbound byte (STATUS push, poll reply, or heartbeat ack) proves liveness.
+            _lastInboundTicks = Environment.TickCount64;
             _buffer.AddRange(chunk[..read]);
             await ProcessBufferAsync(cancellationToken);
         }
@@ -319,6 +331,33 @@ internal sealed class TuyaConnection(
         {
             await Task.Delay(pollInterval, cancellationToken);
             await SendQueryAsync(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Liveness watchdog (UC-09 step 1). The heartbeat/poll loops keep provoking the device; if none of
+    /// those elicit any inbound byte within <paramref name="livenessTimeout"/>, the socket is stalled or
+    /// half-open, so we throw to trip the reconnect path — a TCP error may never surface on its own.
+    /// </summary>
+    private async Task WatchdogLoopAsync(CancellationToken cancellationToken)
+    {
+        // Check at least twice per liveness window (bounded by the heartbeat cadence) for prompt detection.
+        var checkInterval = TimeSpan.FromTicks(Math.Min(heartbeatInterval.Ticks, livenessTimeout.Ticks / 2));
+        if (checkInterval < TimeSpan.FromMilliseconds(100))
+        {
+            checkInterval = TimeSpan.FromMilliseconds(100);
+        }
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await Task.Delay(checkInterval, cancellationToken);
+
+            var idle = Environment.TickCount64 - _lastInboundTicks;
+            if (idle > livenessTimeout.TotalMilliseconds)
+            {
+                throw new IOException(
+                    $"Tuya device {name} silent for {idle / 1000.0:0.#}s (> {livenessTimeout.TotalSeconds:0.#}s); reconnecting.");
+            }
         }
     }
 
