@@ -11,6 +11,9 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.9" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <!-- Pin transitive dep (Knx.Falcon.Sdk -> System.Security.Cryptography.Xml 7.0.0) to a patched
+         version; 7.0.0 has known high-severity vuln GHSA-555c-2p6r-68mm (NU1903). -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.9" />
     <PackageReference Include="TuyaNet" Version="1.0.3" />
   </ItemGroup>
 
