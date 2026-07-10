@@ -1,0 +1,14 @@
+services:
+  tuya-hub:
+    build: .
+    image: tuya-hub:local
+    container_name: tuya-hub
+    # Host networking: KNXnet/IP tunnelling (UDP 3671) needs the gateway's UDP
+    # replies to reach the client, which Docker bridge NAT breaks. Tuya local
+    # is outbound TCP 6668. Both target fixed LAN IPs; no ports are published.
+    network_mode: host
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Correct log timestamps; override in .env if desired.
+      - TZ=Europe/Brussels

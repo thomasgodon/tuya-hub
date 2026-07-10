@@ -130,3 +130,20 @@ These are firmware/protocol quirks the code must respect — see `docs/use-cases
 - Shell is **PowerShell** (pwsh 7+) on Windows; use PowerShell syntax, one command per invocation.
 - Once code exists, expect standard .NET tooling: `dotnet build`, `dotnet test`
   (`dotnet test --filter "FullyQualifiedName~<Name>"` for a single test), `dotnet run`.
+
+## Running in Docker
+
+The host ships as a container (`Dockerfile`, `docker-compose.yml`, `.env.example` at repo root).
+
+- **Image**: multi-stage — `dotnet/sdk:10.0` publishes only `TuyaHub/TuyaHub.csproj` (tests
+  excluded), `dotnet/runtime:10.0` (not aspnet — no web server) runs `TuyaHub.dll` as the non-root
+  `app` user.
+- **Networking**: `network_mode: host` (Linux LAN host). Required because KNXnet/IP tunnelling
+  (UDP 3671) needs the gateway's UDP replies routed back to the client, which Docker bridge NAT
+  breaks; Tuya local is outbound TCP 6668. Both target fixed LAN IPs — no ports are published.
+- **Config**: supplied via env vars (double-underscore binding), not baked into the image. Copy
+  `.env.example` → `.env` (git-ignored), set device secrets (`LocalKey`) and the `DeviceMappings`
+  group addresses (keyed by device `Name`). The shipped `appsettings.json` keeps everything
+  `Enabled=false`; the `.env` enables and configures devices at runtime.
+- **Run**: `docker compose up -d` (or `docker build -t tuya-hub:local .` then
+  `docker run --rm --network host --env-file .env tuya-hub:local`).

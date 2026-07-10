@@ -1,0 +1,22 @@
+# Build output
+**/bin
+**/obj
+
+# VCS / tooling
+.git
+.gitignore
+.claude
+.vs
+.vscode
+
+# Not needed in the image build context
+docs
+TuyaHub.Tests
+LICENSE
+Dockerfile
+docker-compose.yml
+*.md
+
+# Local files / secrets
+**/*.user
+.env
