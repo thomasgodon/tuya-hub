@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repository status: implementation in progress (M1–M3 done)
+## Repository status: implementation in progress (M1–M4 done)
 
 The solution exists (4 projects + tests, per the PRD architecture). Completed milestones:
 - **M1** — scaffold, options binding (`KnxOptions` / `TuyaOptions` / `DeviceMappingOptions`), DI wiring.
@@ -10,11 +10,15 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   heartbeat, background reconnect, pushed-STATUS read loop + interval poll → `DeviceReport` → aggregate.
 - **M3** — KNX outbound / feedback path (`Infrastructure/Knx/`): domain events → status GA writes,
   `GroupValueRead` answered from the last known value, redundant-write dedup. **Light CCT status is
-  deliberately excluded from M3 and deferred to M6.** No `IKnxBus` port yet (introduce in M4 if needed).
+  deliberately excluded from M3 and deferred to M6.**
+- **M4** — KNX inbound / command path (`Infrastructure/Knx/`): inbound `GroupValueWrite` on a mapped
+  command GA → decoded (`KnxDpt` decoders) → routed via `BuildCommandBindings` → `KnxCommandTranslator`
+  builds the existing Application command record → dispatched through MediatR `ISender` to the aggregate
+  → Tuya `CONTROL`. Fan speed uses the DPT 3.007 dim-step (±1 level, break ignored). **Light CCT command
+  is deferred to M6.** No `IKnxBus` port — the ACL dispatches inward via MediatR (matching M3's shape).
 
-Next: **M4 — KNX inbound (commands)**: command-GA → aggregate command → Tuya, incl. the dim-step
-state machine. When implementing, follow the PRD's declared architecture and milestones rather than
-inventing your own.
+Next: **M5 — multi-device isolation + robust reconnect/backoff**. When implementing, follow the PRD's
+declared architecture and milestones rather than inventing your own.
 
 **Read first, always:** `docs/PRD-MVP.md` is the source of truth for what to build. It resolves
 every major design decision (Tuya client library, KNX transport, CCT scope, REST/WS scope) — do not

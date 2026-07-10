@@ -1,6 +1,7 @@
 using Knx.Falcon;
 using Knx.Falcon.Configuration;
 using Knx.Falcon.Sdk;
+using MediatR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TuyaHub.Domain.ValueObjects;
@@ -9,38 +10,50 @@ using TuyaHub.Infrastructure.Options;
 namespace TuyaHub.Infrastructure.Knx;
 
 /// <summary>
-/// The KNX ACL (outbound / feedback direction). Owns the KNXnet/IP tunnelling connection, mirrors
-/// device state to the mapped <b>status</b> group addresses, and answers <c>GroupValueRead</c> on
-/// those addresses from the last known value. Ports DsmrHub's <c>KnxMeterReadingHandler</c>
-/// connection / dedup / read-response behaviour, generalised across N devices × capabilities.
-///
-/// Command GAs (KNX → Tuya) are not consumed here — the inbound path is M4.
+/// The KNX ACL. Owns the KNXnet/IP tunnelling connection and translates both directions:
+/// <list type="bullet">
+/// <item>feedback — mirrors device state to the mapped <b>status</b> group addresses and answers
+/// <c>GroupValueRead</c> on those addresses from the last known value;</item>
+/// <item>command — decodes an inbound <c>GroupValueWrite</c> on a mapped <b>command</b> group address
+/// into the matching domain command and dispatches it via MediatR (KNX → Tuya).</item>
+/// </list>
+/// Ports DsmrHub's <c>KnxMeterReadingHandler</c> connection / dedup / read-response behaviour,
+/// generalised across N devices × capabilities.
 /// </summary>
 internal sealed class KnxBridge : IAsyncDisposable
 {
     private readonly KnxOptions _options;
+    private readonly ISender _sender;
     private readonly ILogger<KnxBridge> _logger;
     private readonly Dictionary<(DeviceName Device, Capability Capability), KnxStatusValue> _store;
     private readonly Dictionary<GroupAddress, KnxStatusValue> _byAddress;
+    private readonly Dictionary<GroupAddress, KnxCommandBinding> _commandsByAddress;
     private readonly object _valuesLock = new();
     private readonly SemaphoreSlim _connectGate = new(1, 1);
     private KnxBus? _bus;
 
-    public KnxBridge(IOptions<KnxOptions> options, IOptions<DeviceMappingOptions> mappings, ILogger<KnxBridge> logger)
+    public KnxBridge(
+        IOptions<KnxOptions> options,
+        IOptions<DeviceMappingOptions> mappings,
+        ISender sender,
+        ILogger<KnxBridge> logger)
     {
         _options = options.Value;
+        _sender = sender;
         _logger = logger;
         _store = BuildStore(mappings.Value);
         _byAddress = _store.Values.ToDictionary(status => status.Address);
+        _commandsByAddress = BuildCommandBindings(mappings.Value);
     }
 
-    /// <summary>True when the KNX bus is enabled and at least one status GA is mapped.</summary>
-    public bool HasWork => _options.Enabled && _store.Count > 0;
+    /// <summary>True when the KNX bus is enabled and at least one status or command GA is mapped.</summary>
+    public bool HasWork => _options.Enabled && (_store.Count > 0 || _commandsByAddress.Count > 0);
 
     /// <summary>
-    /// Establishes the tunnelling connection and subscribes to read requests, so reads are answerable
-    /// before the first status write. No-op when the bus is disabled. Robust reconnect/backoff is M5;
-    /// here a dropped connection is re-established lazily on the next write/respond.
+    /// Establishes the tunnelling connection and subscribes to group messages, so read requests are
+    /// answerable before the first status write and command writes are received from startup. No-op
+    /// when the bus is disabled. Robust reconnect/backoff is M5; here a dropped connection is
+    /// re-established lazily on the next write/respond.
     /// </summary>
     public Task ConnectAsync(CancellationToken cancellationToken)
     {
@@ -50,9 +63,9 @@ internal sealed class KnxBridge : IAsyncDisposable
             return Task.CompletedTask;
         }
 
-        if (_store.Count == 0)
+        if (_store.Count == 0 && _commandsByAddress.Count == 0)
         {
-            _logger.LogWarning("KNX bus enabled but no status group addresses are mapped; nothing to publish.");
+            _logger.LogWarning("KNX bus enabled but no group addresses are mapped; nothing to publish or command.");
             return Task.CompletedTask;
         }
 
@@ -140,32 +153,64 @@ internal sealed class KnxBridge : IAsyncDisposable
     {
         try
         {
-            if (e.EventType != GroupEventType.ValueRead)
+            switch (e.EventType)
             {
-                return;
+                case GroupEventType.ValueRead:
+                    await AnswerReadAsync(e);
+                    break;
+                case GroupEventType.ValueWrite:
+                    await DispatchCommandAsync(e);
+                    break;
             }
-
-            KnxStatusValue? status;
-            lock (_valuesLock)
-            {
-                if (_byAddress.TryGetValue(e.DestinationAddress, out status) is false || status.Value is null)
-                {
-                    return;
-                }
-            }
-
-            if (_bus is null)
-            {
-                return;
-            }
-
-            await _bus.RespondGroupValueAsync(status.Address, new GroupValue(status.Value), MessagePriority.Low, CancellationToken.None);
-            _logger.LogDebug("KNX read answered {Status}", status);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to answer KNX read request on {Address}.", e.DestinationAddress);
+            _logger.LogWarning(ex, "Failed to handle KNX {EventType} on {Address}.", e.EventType, e.DestinationAddress);
         }
+    }
+
+    private async Task AnswerReadAsync(GroupEventArgs e)
+    {
+        KnxStatusValue? status;
+        lock (_valuesLock)
+        {
+            if (_byAddress.TryGetValue(e.DestinationAddress, out status) is false || status.Value is null)
+            {
+                return;
+            }
+        }
+
+        if (_bus is null)
+        {
+            return;
+        }
+
+        await _bus.RespondGroupValueAsync(status.Address, new GroupValue(status.Value), MessagePriority.Low, CancellationToken.None);
+        _logger.LogDebug("KNX read answered {Status}", status);
+    }
+
+    private async Task DispatchCommandAsync(GroupEventArgs e)
+    {
+        if (_commandsByAddress.TryGetValue(e.DestinationAddress, out var binding) is false)
+        {
+            return; // Not a mapped command GA (e.g. a write to a status GA) — ignore.
+        }
+
+        if (e.Value is null)
+        {
+            _logger.LogWarning("KNX command on {Address} carried no value.", e.DestinationAddress);
+            return;
+        }
+
+        var command = KnxCommandTranslator.Translate(binding, e.Value.Value);
+        if (command is null)
+        {
+            return; // Nothing to send (e.g. a fan-speed break/stop telegram).
+        }
+
+        await _sender.Send(command, CancellationToken.None);
+        _logger.LogDebug("KNX command {Capability} for {Device} dispatched from {Address}.",
+            binding.Capability, binding.Device, e.DestinationAddress);
     }
 
     // Internal (not private) so the mapping rules can be unit-tested without a live bus.
@@ -190,7 +235,7 @@ internal sealed class KnxBridge : IAsyncDisposable
         return store;
     }
 
-    // Status GAs only; command GAs (M4) and Light CCT (M6) are intentionally excluded.
+    // Status GAs only; command GAs are handled by BuildCommandBindings and Light CCT (M6) is excluded.
     private static IEnumerable<(Capability, string)> StatusAddresses(DeviceMapping m)
     {
         yield return (Capability.FanPower, m.FanPowerStatus);
@@ -200,6 +245,39 @@ internal sealed class KnxBridge : IAsyncDisposable
         yield return (Capability.LightPower, m.LightPowerStatus);
         yield return (Capability.LightBrightness, m.LightBrightnessStatus);
         yield return (Capability.Availability, m.AvailabilityStatus);
+    }
+
+    // Internal (not private) so the command-mapping rules can be unit-tested without a live bus.
+    internal static Dictionary<GroupAddress, KnxCommandBinding> BuildCommandBindings(DeviceMappingOptions mappings)
+    {
+        var bindings = new Dictionary<GroupAddress, KnxCommandBinding>();
+
+        foreach (var (name, mapping) in mappings)
+        {
+            var device = DeviceName.Create(name);
+            foreach (var (capability, ga) in CommandAddresses(mapping))
+            {
+                if (string.IsNullOrWhiteSpace(ga))
+                {
+                    continue; // Empty GA disables this command for this device.
+                }
+
+                bindings[GroupAddress.Parse(ga)] = new KnxCommandBinding(device, capability);
+            }
+        }
+
+        return bindings;
+    }
+
+    // Command GAs only; the Light CCT command (M6) is intentionally excluded.
+    private static IEnumerable<(CommandCapability, string)> CommandAddresses(DeviceMapping m)
+    {
+        yield return (CommandCapability.FanPower, m.FanPowerCommand);
+        yield return (CommandCapability.FanSpeedStep, m.FanSpeedStep);
+        yield return (CommandCapability.FanDirection, m.FanDirectionCommand);
+        yield return (CommandCapability.FanTimer, m.FanTimerCommand);
+        yield return (CommandCapability.LightPower, m.LightPowerCommand);
+        yield return (CommandCapability.LightBrightness, m.LightBrightnessCommand);
     }
 
     public async ValueTask DisposeAsync()
