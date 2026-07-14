@@ -7,12 +7,13 @@ using TuyaHub.Application.Abstractions;
 using TuyaHub.Domain;
 using TuyaHub.Domain.ValueObjects;
 using TuyaHub.Infrastructure.Options;
+using TuyaHub.Infrastructure.Profiles;
 using TuyaHub.Infrastructure.Resilience;
 
 namespace TuyaHub.Infrastructure.Tuya;
 
 /// <summary>
-/// A supervised, persistent local connection to one Wind Calm device. TuyaNet is used purely as the
+/// A supervised, persistent local connection to one device. TuyaNet is used purely as the
 /// 3.3 codec (<see cref="TuyaDevice.EncodeRequest"/> / <see cref="TuyaDevice.DecodeResponse"/>); this
 /// class owns the single TCP socket and adds the reliability layer TuyaNet lacks:
 /// <list type="bullet">
@@ -27,6 +28,7 @@ namespace TuyaHub.Infrastructure.Tuya;
 internal sealed class TuyaConnection(
     DeviceName name,
     TuyaDeviceOptions options,
+    DeviceProfile profile,
     TimeSpan pollInterval,
     TimeSpan heartbeatInterval,
     TimeSpan livenessTimeout,
@@ -136,7 +138,7 @@ internal sealed class TuyaConnection(
             return;
         }
 
-        var dps = TuyaDatapoints.ToDps(command);
+        var dps = TuyaProfileCodec.ToDps(profile, command);
         var json = JsonConvert.SerializeObject(new Dictionary<string, object> { ["dps"] = dps });
         json = _codec.FillJson(json);
         var frame = _codec.EncodeRequest(TuyaCommand.CONTROL, json);
@@ -264,7 +266,7 @@ internal sealed class TuyaConnection(
                 return;
             }
 
-            report = TuyaDatapoints.ToReport(dps);
+            report = TuyaProfileCodec.ToReport(profile, dps);
         }
         catch (Exception ex)
         {

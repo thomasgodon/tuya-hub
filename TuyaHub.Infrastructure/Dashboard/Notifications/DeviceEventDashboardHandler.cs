@@ -11,23 +11,11 @@ namespace TuyaHub.Infrastructure.Dashboard.Notifications;
 /// concrete type), mirroring the KNX event handler.
 /// </summary>
 internal sealed class DeviceEventDashboardHandler(DashboardSnapshotPublisher publisher) :
-    INotificationHandler<FanPowerChanged>,
-    INotificationHandler<FanSpeedChanged>,
-    INotificationHandler<FanDirectionChanged>,
-    INotificationHandler<FanTimerChanged>,
-    INotificationHandler<LightPowerChanged>,
-    INotificationHandler<LightBrightnessChanged>,
-    INotificationHandler<LightCctChanged>,
+    INotificationHandler<DeviceCapabilityChanged>,
     INotificationHandler<DeviceWentOffline>,
     INotificationHandler<DeviceReconnected>
 {
-    public Task Handle(FanPowerChanged n, CancellationToken ct) => Publish();
-    public Task Handle(FanSpeedChanged n, CancellationToken ct) => Publish();
-    public Task Handle(FanDirectionChanged n, CancellationToken ct) => Publish();
-    public Task Handle(FanTimerChanged n, CancellationToken ct) => Publish();
-    public Task Handle(LightPowerChanged n, CancellationToken ct) => Publish();
-    public Task Handle(LightBrightnessChanged n, CancellationToken ct) => Publish();
-    public Task Handle(LightCctChanged n, CancellationToken ct) => Publish();
+    public Task Handle(DeviceCapabilityChanged n, CancellationToken ct) => Publish();
     public Task Handle(DeviceWentOffline n, CancellationToken ct) => Publish();
     public Task Handle(DeviceReconnected n, CancellationToken ct) => Publish();
 

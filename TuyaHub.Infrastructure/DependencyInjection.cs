@@ -9,6 +9,7 @@ using TuyaHub.Infrastructure.Dashboard;
 using TuyaHub.Infrastructure.Dashboard.Notifications;
 using TuyaHub.Infrastructure.Knx;
 using TuyaHub.Infrastructure.Options;
+using TuyaHub.Infrastructure.Profiles;
 using TuyaHub.Infrastructure.Tuya;
 
 namespace TuyaHub.Infrastructure;
@@ -28,7 +29,12 @@ public static class DependencyInjection
         services.Configure<DeviceMappingOptions>(configuration.GetSection("DeviceMappings"));
         services.Configure<DashboardOptions>(configuration.GetSection(nameof(DashboardOptions)));
 
-        // Domain registry — one Device aggregate per enabled configured device.
+        // Device profiles — the registry of supported device types (Wind Calm is profile #1). A new
+        // device type is added by registering another DeviceProfile here.
+        services.AddSingleton<IDeviceProfileRegistry>(_ => new DeviceProfileRegistry([WindCalmProfile.Create()]));
+        services.AddSingleton<ConfiguredDeviceProfiles>();
+
+        // Domain registry — one aggregate per enabled configured device, built via its profile factory.
         services.AddSingleton<IDeviceRegistry, ConfigurationDeviceRegistry>();
 
         // Tuya ACL: the manager owns the connections; the gateway sends commands into them and the
@@ -44,34 +50,21 @@ public static class DependencyInjection
         services.AddHostedService<TuyaDiscoveryService>();
 
         // KNX ACL (outbound / feedback path): the bridge owns the connection and status cache; its
-        // supervisor opens the connection at startup; the handlers translate domain events to status
+        // supervisor opens the connection at startup; the handler translates domain events to status
         // writes. Registered explicitly per event type (MediatR dispatches on the concrete type), as
-        // DsmrHub registers its sink handlers.
+        // DsmrHub registers its sink handlers. The generic DeviceCapabilityChanged event means one
+        // registration per handler covers every capability of every device type.
         services.AddSingleton<KnxBridge>();
         services.AddHostedService<KnxConnectionSupervisor>();
-        services.AddSingleton<INotificationHandler<FanPowerChanged>, DeviceEventKnxHandler>();
-        services.AddSingleton<INotificationHandler<FanSpeedChanged>, DeviceEventKnxHandler>();
-        services.AddSingleton<INotificationHandler<FanDirectionChanged>, DeviceEventKnxHandler>();
-        services.AddSingleton<INotificationHandler<FanTimerChanged>, DeviceEventKnxHandler>();
-        services.AddSingleton<INotificationHandler<LightPowerChanged>, DeviceEventKnxHandler>();
-        services.AddSingleton<INotificationHandler<LightBrightnessChanged>, DeviceEventKnxHandler>();
-        services.AddSingleton<INotificationHandler<LightCctChanged>, DeviceEventKnxHandler>();
+        services.AddSingleton<INotificationHandler<DeviceCapabilityChanged>, DeviceEventKnxHandler>();
         services.AddSingleton<INotificationHandler<DeviceWentOffline>, DeviceEventKnxHandler>();
         services.AddSingleton<INotificationHandler<DeviceReconnected>, DeviceEventKnxHandler>();
 
         // Dashboard feedback path: the publisher projects the whole hub state to a snapshot; the event
         // handler republishes it on every state change; the initializer seeds one snapshot at startup.
-        // Registered explicitly per event type (as the KNX handler above), since MediatR dispatches on
-        // the concrete type.
         services.AddSingleton<DashboardSnapshotPublisher>();
         services.AddHostedService<DashboardSnapshotInitializer>();
-        services.AddSingleton<INotificationHandler<FanPowerChanged>, DeviceEventDashboardHandler>();
-        services.AddSingleton<INotificationHandler<FanSpeedChanged>, DeviceEventDashboardHandler>();
-        services.AddSingleton<INotificationHandler<FanDirectionChanged>, DeviceEventDashboardHandler>();
-        services.AddSingleton<INotificationHandler<FanTimerChanged>, DeviceEventDashboardHandler>();
-        services.AddSingleton<INotificationHandler<LightPowerChanged>, DeviceEventDashboardHandler>();
-        services.AddSingleton<INotificationHandler<LightBrightnessChanged>, DeviceEventDashboardHandler>();
-        services.AddSingleton<INotificationHandler<LightCctChanged>, DeviceEventDashboardHandler>();
+        services.AddSingleton<INotificationHandler<DeviceCapabilityChanged>, DeviceEventDashboardHandler>();
         services.AddSingleton<INotificationHandler<DeviceWentOffline>, DeviceEventDashboardHandler>();
         services.AddSingleton<INotificationHandler<DeviceReconnected>, DeviceEventDashboardHandler>();
 

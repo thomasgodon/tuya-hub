@@ -20,4 +20,12 @@ public sealed record DeviceStateSnapshot(
     int LightBrightnessDp,
     int LightBrightnessPercent,
     int LightCctDp,
-    int LightCctPercent);
+    int LightCctPercent)
+{
+    /// <summary>
+    /// Generic per-capability values for device types rendered by the capability-driven dashboard.
+    /// Wind Calm uses the typed fields above instead and leaves this empty.
+    /// </summary>
+    public IReadOnlyDictionary<CapabilityKey, CapabilityValue> Capabilities { get; init; }
+        = new Dictionary<CapabilityKey, CapabilityValue>();
+}

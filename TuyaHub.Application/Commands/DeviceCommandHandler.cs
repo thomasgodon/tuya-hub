@@ -26,10 +26,10 @@ public abstract class DeviceCommandHandler<TCommand>(
 {
     public async Task Handle(TCommand request, CancellationToken cancellationToken)
     {
-        var device = registry.Find(request.Device);
-        if (device is null)
+        // These handlers target the Wind Calm aggregate; a device of another type (or none) is ignored.
+        if (registry.Find(request.Device) is not Device device)
         {
-            logger.LogWarning("Command {Command} for unknown device {Device} ignored.",
+            logger.LogWarning("Command {Command} for unknown or incompatible device {Device} ignored.",
                 typeof(TCommand).Name, request.Device);
             return;
         }

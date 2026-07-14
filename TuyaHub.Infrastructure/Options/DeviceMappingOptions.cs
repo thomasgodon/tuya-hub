@@ -7,30 +7,12 @@ namespace TuyaHub.Infrastructure.Options;
 public sealed class DeviceMappingOptions : Dictionary<string, DeviceMapping>;
 
 /// <summary>
-/// The command and status group addresses for one device. Command (KNX → Tuya) and status
-/// (Tuya → KNX) are always separate addresses. An empty string disables that function for this
-/// device (the mapping entry is ignored).
+/// The command and status group addresses for one device, as a map of capability mapping-key → group
+/// address (e.g. <c>"FanPowerCommand" → "1/1/1"</c>). The valid keys are declared by the device's
+/// profile capability bindings (<c>StatusMappingKey</c> / <c>CommandMappingKey</c>); command
+/// (KNX → device) and status (device → KNX) are always separate keys. A missing or empty/whitespace
+/// value disables that function for this device. Kept as a string-keyed dictionary (rather than fixed
+/// properties) so a new device type contributes its own keys without editing this type; the JSON and
+/// double-underscore env-var binding are unchanged (e.g. <c>DeviceMappings__Name__FanPowerCommand</c>).
 /// </summary>
-public sealed class DeviceMapping
-{
-    // Fan
-    public string FanPowerCommand { get; set; } = "";
-    public string FanPowerStatus { get; set; } = "";
-    public string FanSpeedStep { get; set; } = "";       // DPT 3.007 (relative dim)
-    public string FanSpeedStatus { get; set; } = "";     // DPT 5.010 (count 0..6)
-    public string FanDirectionCommand { get; set; } = "";
-    public string FanDirectionStatus { get; set; } = "";
-    public string FanTimerCommand { get; set; } = "";    // DPT 7.006 (minutes)
-    public string FanTimerStatus { get; set; } = "";
-
-    // Light
-    public string LightPowerCommand { get; set; } = "";
-    public string LightPowerStatus { get; set; } = "";
-    public string LightBrightnessCommand { get; set; } = "";  // DPT 5.001 (%)
-    public string LightBrightnessStatus { get; set; } = "";
-    public string LightCctCommand { get; set; } = "";         // DPT 5.001 (%), snapped to 3 steps
-    public string LightCctStatus { get; set; } = "";
-
-    /// <summary>Optional availability object (DPT 1.001): 1 = online. Empty disables it.</summary>
-    public string AvailabilityStatus { get; set; } = "";
-}
+public sealed class DeviceMapping : Dictionary<string, string>;

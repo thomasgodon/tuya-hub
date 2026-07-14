@@ -27,9 +27,25 @@ public sealed class KnxConnectionDto
 public sealed class DeviceDto
 {
     public string Name { get; init; } = string.Empty;
+
+    /// <summary>The device's profile id (e.g. "wind-calm"); the UI picks its renderer from this.</summary>
+    public string ProfileId { get; init; } = string.Empty;
+
     public bool Online { get; init; }
+
+    /// <summary>Populated for the Wind Calm profile (its bespoke card). Empty for other profiles.</summary>
     public FanDto Fan { get; init; } = new();
     public LightDto Light { get; init; } = new();
+
+    /// <summary>Generic labelled capability values for profiles rendered by the capability-driven card.</summary>
+    public CapabilitySection[] Sections { get; init; } = [];
+}
+
+/// <summary>One labelled capability value on the generic dashboard card.</summary>
+public sealed class CapabilitySection
+{
+    public string Label { get; init; } = string.Empty;
+    public string Value { get; init; } = string.Empty;
 }
 
 public sealed class FanDto

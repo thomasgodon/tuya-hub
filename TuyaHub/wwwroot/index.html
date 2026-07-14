@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <title>tuya-hub</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f14'/%3E%3Cg fill='%2338bdf8'%3E%3Cpath d='M16 16 C13 11 13 6 16 3 C19 6 19 11 16 16 Z'/%3E%3Cpath d='M16 16 C21 13 26 13 29 16 C26 19 21 19 16 16 Z'/%3E%3Cpath d='M16 16 C19 21 19 26 16 29 C13 26 13 21 16 16 Z'/%3E%3Cpath d='M16 16 C11 19 6 19 3 16 C6 13 11 13 16 16 Z'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='3' fill='%23e6edf3'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0f14'/%3E%3Cg stroke='%2338bdf8' stroke-width='2.2' stroke-linecap='round' fill='none'%3E%3Cpath d='M16 12.8V6'/%3E%3Cpath d='M16 19.2V26'/%3E%3Cpath d='M12.8 16H6'/%3E%3Cpath d='M19.2 16H26'/%3E%3Ccircle cx='16' cy='6' r='1.9'/%3E%3Ccircle cx='16' cy='26' r='1.9'/%3E%3Ccircle cx='6' cy='16' r='1.9'/%3E%3Ccircle cx='26' cy='16' r='1.9'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='3' fill='%2338bdf8'/%3E%3C/svg%3E" />
   <style>
     :root {
       --bg: #0b0f14;
@@ -16,7 +16,7 @@
       --text: #e6edf3;
       --text-dim: #8b97a7;
       --text-faint: #5b6573;
-      --air: #38bdf8;      /* fan / airflow */
+      --air: #38bdf8;      /* accent (device activity) */
       --warm: #fbbf24;     /* light */
       --ok: #3ecf8e;
       --off: #5b6573;
@@ -48,7 +48,6 @@
     }
     .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
     .brand .mark { width: 30px; height: 30px; flex: none; color: var(--air); }
-    .brand .mark .rotor { transform-origin: 50% 50%; animation: spin 6s linear infinite; }
     .brand h1 {
       font-size: clamp(21px, 3.5vw, 27px); font-weight: 700; letter-spacing: -.03em; margin: 0; line-height: 1;
     }
@@ -149,15 +148,16 @@
   <div class="wrap">
     <header>
       <div class="brand">
-        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g class="rotor" fill="currentColor">
-          <path d="M16 16 C13 11 13 6 16 3 C19 6 19 11 16 16 Z"/>
-          <path d="M16 16 C21 13 26 13 29 16 C26 19 21 19 16 16 Z"/>
-          <path d="M16 16 C19 21 19 26 16 29 C13 26 13 21 16 16 Z"/>
-          <path d="M16 16 C11 19 6 19 3 16 C6 13 11 13 16 16 Z"/>
-        </g><circle cx="16" cy="16" r="3" fill="var(--text)"/></svg>
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <circle cx="16" cy="16" r="3.2" fill="currentColor" stroke="none"/>
+          <path d="M16 12.8 V5"/><path d="M16 19.2 V27"/>
+          <path d="M12.8 16 H5"/><path d="M19.2 16 H27"/>
+          <circle cx="16" cy="5" r="2"/><circle cx="16" cy="27" r="2"/>
+          <circle cx="5" cy="16" r="2"/><circle cx="27" cy="16" r="2"/>
+        </svg>
         <div>
           <h1>tuya-hub</h1>
-          <span class="sub">Wind Calm · KNX bridge</span>
+          <span class="sub">Tuya · KNX bridge</span>
         </div>
       </div>
       <div class="pills">
@@ -249,6 +249,22 @@
       </article>`;
     }
 
+    // Generic renderer for any device type without a bespoke card: a labelled list of its capabilities.
+    function genericCard(dev) {
+      const rows = (dev.sections || []).map(s =>
+        `<div class="disc-row"><span class="k">${esc(s.label)}</span><span class="v">${esc(s.value)}</span></div>`).join("");
+      return `<article class="card ${dev.online ? "" : "is-offline"}">
+        <header class="card-head">
+          <div class="title"><span class="dot ${dev.online ? "ok" : "off"}"></span>${esc(dev.name)}</div>
+          ${dev.online ? "" : '<span class="off-tag">offline</span>'}
+        </header>
+        ${rows || '<div class="meta-row">No capabilities reported.</div>'}
+      </article>`;
+    }
+
+    // Per-profile card renderers; profiles without a bespoke card fall back to genericCard.
+    const RENDERERS = { "wind-calm": fanCard };
+
     function discoveredCard(dev) {
       const ver = dev.protocolVersion ? esc(dev.protocolVersion) : "?";
       const pk = dev.productKey
@@ -278,7 +294,7 @@
 
       const cards = $("cards");
       cards.innerHTML = devices.length
-        ? devices.map(fanCard).join("")
+        ? devices.map(d => (RENDERERS[d.profileId] || genericCard)(d)).join("")
         : '<div class="empty">No devices configured.</div>';
 
       // discovered-but-unconfigured devices (hidden entirely when none are seen)

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TuyaHub.Domain.ValueObjects;
 using TuyaHub.Infrastructure.Options;
+using TuyaHub.Infrastructure.Profiles;
 
 namespace TuyaHub.Infrastructure.Knx;
 
@@ -25,7 +26,7 @@ internal sealed class KnxBridge : IAsyncDisposable
     private readonly KnxOptions _options;
     private readonly ISender _sender;
     private readonly ILogger<KnxBridge> _logger;
-    private readonly Dictionary<(DeviceName Device, Capability Capability), KnxStatusValue> _store;
+    private readonly Dictionary<(DeviceName Device, CapabilityKey Capability), KnxStatusValue> _store;
     private readonly Dictionary<GroupAddress, KnxStatusValue> _byAddress;
     private readonly Dictionary<GroupAddress, KnxCommandBinding> _commandsByAddress;
     private readonly object _valuesLock = new();
@@ -38,15 +39,16 @@ internal sealed class KnxBridge : IAsyncDisposable
     public KnxBridge(
         IOptions<KnxOptions> options,
         IOptions<DeviceMappingOptions> mappings,
+        ConfiguredDeviceProfiles profiles,
         ISender sender,
         ILogger<KnxBridge> logger)
     {
         _options = options.Value;
         _sender = sender;
         _logger = logger;
-        _store = BuildStore(mappings.Value);
+        _store = BuildStore(mappings.Value, profiles.For);
         _byAddress = _store.Values.ToDictionary(status => status.Address);
-        _commandsByAddress = BuildCommandBindings(mappings.Value);
+        _commandsByAddress = BuildCommandBindings(mappings.Value, profiles.For);
     }
 
     /// <summary>True when the KNX bus is enabled and at least one status or command GA is mapped.</summary>
@@ -83,7 +85,7 @@ internal sealed class KnxBridge : IAsyncDisposable
     /// for read responses (FR-7), and writes it to the bus. No-op when the bus is disabled or the
     /// capability has no mapped status GA.
     /// </summary>
-    public async Task PublishAsync(DeviceName device, Capability capability, byte[] value, CancellationToken cancellationToken)
+    public async Task PublishAsync(DeviceName device, CapabilityKey capability, byte[] value, CancellationToken cancellationToken)
     {
         if (_options.Enabled is false)
         {
@@ -260,76 +262,65 @@ internal sealed class KnxBridge : IAsyncDisposable
 
         await _sender.Send(command, CancellationToken.None);
         _logger.LogDebug("KNX command {Capability} for {Device} dispatched from {Address}.",
-            binding.Capability, binding.Device, e.DestinationAddress);
+            binding.Capability.Key, binding.Device, e.DestinationAddress);
     }
 
-    // Internal (not private) so the mapping rules can be unit-tested without a live bus.
-    internal static Dictionary<(DeviceName, Capability), KnxStatusValue> BuildStore(DeviceMappingOptions mappings)
+    // Internal (not private) so the mapping rules can be unit-tested without a live bus. Each device's
+    // profile declares which capabilities have a status GA and under which mapping key; the empty-GA
+    // (and duplicate-GA, via _byAddress) rules are preserved.
+    internal static Dictionary<(DeviceName, CapabilityKey), KnxStatusValue> BuildStore(
+        DeviceMappingOptions mappings, Func<DeviceName, DeviceProfile> profileFor)
     {
-        var store = new Dictionary<(DeviceName, Capability), KnxStatusValue>();
+        var store = new Dictionary<(DeviceName, CapabilityKey), KnxStatusValue>();
 
         foreach (var (name, mapping) in mappings)
         {
             var device = DeviceName.Create(name);
-            foreach (var (capability, ga) in StatusAddresses(mapping))
+            foreach (var binding in profileFor(device).Capabilities)
             {
-                if (string.IsNullOrWhiteSpace(ga))
+                if (binding.StatusMappingKey is not { } key)
                 {
-                    continue; // Empty GA disables this capability for this device.
+                    continue; // Capability has no status GA.
                 }
 
-                store[(device, capability)] = new KnxStatusValue(GroupAddress.Parse(ga));
+                if (mapping.TryGetValue(key, out var ga) is false || string.IsNullOrWhiteSpace(ga))
+                {
+                    continue; // Absent or empty GA disables this capability for this device.
+                }
+
+                store[(device, binding.Key)] = new KnxStatusValue(GroupAddress.Parse(ga));
             }
         }
 
         return store;
     }
 
-    // Status GAs only; command GAs are handled by BuildCommandBindings.
-    private static IEnumerable<(Capability, string)> StatusAddresses(DeviceMapping m)
-    {
-        yield return (Capability.FanPower, m.FanPowerStatus);
-        yield return (Capability.FanSpeed, m.FanSpeedStatus);
-        yield return (Capability.FanDirection, m.FanDirectionStatus);
-        yield return (Capability.FanTimer, m.FanTimerStatus);
-        yield return (Capability.LightPower, m.LightPowerStatus);
-        yield return (Capability.LightBrightness, m.LightBrightnessStatus);
-        yield return (Capability.LightCct, m.LightCctStatus);
-        yield return (Capability.Availability, m.AvailabilityStatus);
-    }
-
     // Internal (not private) so the command-mapping rules can be unit-tested without a live bus.
-    internal static Dictionary<GroupAddress, KnxCommandBinding> BuildCommandBindings(DeviceMappingOptions mappings)
+    internal static Dictionary<GroupAddress, KnxCommandBinding> BuildCommandBindings(
+        DeviceMappingOptions mappings, Func<DeviceName, DeviceProfile> profileFor)
     {
         var bindings = new Dictionary<GroupAddress, KnxCommandBinding>();
 
         foreach (var (name, mapping) in mappings)
         {
             var device = DeviceName.Create(name);
-            foreach (var (capability, ga) in CommandAddresses(mapping))
+            foreach (var binding in profileFor(device).Capabilities)
             {
-                if (string.IsNullOrWhiteSpace(ga))
+                if (binding.CommandMappingKey is not { } key || binding.BuildCommand is null)
                 {
-                    continue; // Empty GA disables this command for this device.
+                    continue; // Capability accepts no command.
                 }
 
-                bindings[GroupAddress.Parse(ga)] = new KnxCommandBinding(device, capability);
+                if (mapping.TryGetValue(key, out var ga) is false || string.IsNullOrWhiteSpace(ga))
+                {
+                    continue; // Absent or empty GA disables this command for this device.
+                }
+
+                bindings[GroupAddress.Parse(ga)] = new KnxCommandBinding(device, binding);
             }
         }
 
         return bindings;
-    }
-
-    // Command GAs only.
-    private static IEnumerable<(CommandCapability, string)> CommandAddresses(DeviceMapping m)
-    {
-        yield return (CommandCapability.FanPower, m.FanPowerCommand);
-        yield return (CommandCapability.FanSpeedStep, m.FanSpeedStep);
-        yield return (CommandCapability.FanDirection, m.FanDirectionCommand);
-        yield return (CommandCapability.FanTimer, m.FanTimerCommand);
-        yield return (CommandCapability.LightPower, m.LightPowerCommand);
-        yield return (CommandCapability.LightBrightness, m.LightBrightnessCommand);
-        yield return (CommandCapability.LightCct, m.LightCctCommand);
     }
 
     public async ValueTask DisposeAsync()

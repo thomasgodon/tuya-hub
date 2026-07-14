@@ -3,8 +3,10 @@ using Microsoft.Extensions.Options;
 using TuyaHub.Application.Dashboard;
 using TuyaHub.Application.Dashboard.Options;
 using TuyaHub.Domain;
+using TuyaHub.Domain.ValueObjects;
 using TuyaHub.Infrastructure.Knx;
 using TuyaHub.Infrastructure.Options;
+using TuyaHub.Infrastructure.Profiles;
 using TuyaHub.Infrastructure.Tuya;
 
 namespace TuyaHub.Infrastructure.Dashboard;
@@ -24,6 +26,7 @@ internal sealed class DashboardSnapshotPublisher
     private readonly IDeviceSnapshotBroadcaster _broadcaster;
     private readonly KnxBridge _knxBridge;
     private readonly TuyaDiscoveryStore _discovery;
+    private readonly ConfiguredDeviceProfiles _profiles;
     private readonly KnxOptions _knxOptions;
     private readonly TuyaOptions _tuyaOptions;
     private readonly DashboardOptions _dashboardOptions;
@@ -33,6 +36,7 @@ internal sealed class DashboardSnapshotPublisher
         IDeviceSnapshotBroadcaster broadcaster,
         KnxBridge knxBridge,
         TuyaDiscoveryStore discovery,
+        ConfiguredDeviceProfiles profiles,
         IOptions<KnxOptions> knxOptions,
         IOptions<TuyaOptions> tuyaOptions,
         IOptions<DashboardOptions> dashboardOptions)
@@ -41,6 +45,7 @@ internal sealed class DashboardSnapshotPublisher
         _broadcaster = broadcaster;
         _knxBridge = knxBridge;
         _discovery = discovery;
+        _profiles = profiles;
         _knxOptions = knxOptions.Value;
         _tuyaOptions = tuyaOptions.Value;
         _dashboardOptions = dashboardOptions.Value;
@@ -88,25 +93,60 @@ internal sealed class DashboardSnapshotPublisher
         _broadcaster.Publish(JsonSerializer.Serialize(snapshot, JsonOptions));
     }
 
-    private static DeviceDto ToDto(DeviceStateSnapshot state) => new()
+    private DeviceDto ToDto(DeviceStateSnapshot state) => Project(_profiles.For(state.Name), state);
+
+    // Internal-static so the projection is unit-testable without the full publisher graph.
+    internal static DeviceDto Project(DeviceProfile profile, DeviceStateSnapshot state)
     {
-        Name = state.Name.Value,
-        Online = state.IsOnline,
-        Fan = new FanDto
+        return new DeviceDto
         {
-            Power = state.FanPower,
-            SpeedStatus = state.FanSpeedStatus,
-            Direction = state.FanDirection.ToString(),
-            TimerMinutes = state.FanTimerMinutes,
-            TimerRunning = state.FanTimerRunning
-        },
-        Light = new LightDto
+            Name = state.Name.Value,
+            ProfileId = profile.ProfileId,
+            Online = state.IsOnline,
+            // Populated for Wind Calm's bespoke card; harmless defaults for other profiles.
+            Fan = new FanDto
+            {
+                Power = state.FanPower,
+                SpeedStatus = state.FanSpeedStatus,
+                Direction = state.FanDirection.ToString(),
+                TimerMinutes = state.FanTimerMinutes,
+                TimerRunning = state.FanTimerRunning
+            },
+            Light = new LightDto
+            {
+                Power = state.LightPower,
+                BrightnessPercent = state.LightBrightnessPercent,
+                BrightnessDp = state.LightBrightnessDp,
+                CctPercent = state.LightCctPercent,
+                CctStep = state.LightCctDp
+            },
+            Sections = BuildSections(profile, state)
+        };
+    }
+
+    // Generic capability-driven card: one labelled row per capability whose profile binding declares a
+    // dashboard field and whose value is present in the snapshot. Empty for Wind Calm (no dashboard fields).
+    private static CapabilitySection[] BuildSections(DeviceProfile profile, DeviceStateSnapshot state)
+    {
+        var sections = new List<CapabilitySection>();
+
+        foreach (var binding in profile.Capabilities)
         {
-            Power = state.LightPower,
-            BrightnessPercent = state.LightBrightnessPercent,
-            BrightnessDp = state.LightBrightnessDp,
-            CctPercent = state.LightCctPercent,
-            CctStep = state.LightCctDp
+            if (binding.Dashboard is not { } field || state.Capabilities.TryGetValue(binding.Key, out var value) is false)
+            {
+                continue;
+            }
+
+            sections.Add(new CapabilitySection { Label = field.Label, Value = Format(value, field.Unit) });
         }
+
+        return [.. sections];
+    }
+
+    private static string Format(CapabilityValue value, string? unit) => value.Kind switch
+    {
+        CapabilityValue.ValueKind.Bool => value.AsBool() ? "On" : "Off",
+        CapabilityValue.ValueKind.Int => unit is null ? value.AsInt().ToString() : $"{value.AsInt()} {unit}",
+        _ => value.AsText(),
     };
 }

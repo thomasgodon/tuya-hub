@@ -49,10 +49,12 @@ re-open those unless asked.
 
 ## What tuya-hub is
 
-A C# (**.NET 10**) console/worker app that bridges **CREATE / IKOHS "Windcalm"** ceiling-fan-with-light
-devices to a **KNX** bus. Each Tuya device is controlled **locally over the LAN** (Tuya local
-protocol **3.3**, per-device local key, **no cloud**) and exposed as KNX group objects for bidirectional
-control + status feedback.
+A C# (**.NET 10**) console/worker app: a **generic Tuya → KNX hub**. Each Tuya device is controlled
+**locally over the LAN** (Tuya local protocol, per-device local key, **no cloud**) and exposed as KNX
+group objects for bidirectional control + status feedback. Device types are pluggable via **profiles**
+(see the architecture section); the **CREATE / IKOHS "Windcalm"** ceiling-fan-with-light (protocol
+**3.3**) is the **first and currently only profile** — so it's the one concrete implementation, not the
+whole product.
 
 The MVP is deliberately narrow: statically-configured devices only (**no LAN discovery**, no cloud,
 no REST/WebSocket *control* — those are documented in `docs/use-cases/` as future/secondary surface
@@ -71,6 +73,24 @@ protocols, is the center**.
 **The strategic key: both KNX and Tuya are external models behind Anti-Corruption Layers.** The domain
 never sees a `dps` dict or a `GroupValue` byte array; each ACL is the only place its foreign model is
 translated. When implementing, keep protocol types out of `Domain`/`Application`.
+
+**Device profiles (the genericity seam).** Everything specific to a device *type* lives in one
+`DeviceProfile` (a table of `CapabilityBinding`s) under `Infrastructure/Profiles/`: its Tuya DP numbers +
+wire codecs, its KNX DPT/mapping-key bindings, and its dashboard presentation. The shared engines iterate
+that table, so **adding a device type is registering a profile — no shared ACL file is edited.** Concretely:
+- The domain currency is generic: `DeviceCommand`/`DeviceReport` are capability-keyed bags (`CapabilityKey`)
+  behind Wind Calm's typed facade (`FanPower`, …), and a single `DeviceCapabilityChanged` event replaced the
+  per-capability events. `CapabilityValue` is the domain-neutral scalar it carries.
+- `TuyaProfileCodec` (replaced the old `TuyaDatapoints`), the KNX `KnxBridge` store/command builders,
+  `KnxCommandTranslator`, the single `DeviceEventKnxHandler`, and the dashboard projection all read the
+  profile bindings instead of a hard-coded fan/light switch. The old `Capability`/`CommandCapability` enums
+  are gone.
+- A device declares its type via `TuyaOptions.Devices[].Profile` (default `"wind-calm"`), resolved by
+  `IDeviceProfileRegistry` (plus `ConfiguredDeviceProfiles` for the name→profile lookup the KNX ACL needs).
+- **`WindCalmProfile` is profile #1.** Its `Device` aggregate still owns the fan+light rules (dim-step, CCT
+  flicker, MCU timer) — those stay concrete, not data-driven. A new device type = a new profile + its own
+  aggregate/Application command records (MediatR auto-discovers the handlers) + one registration line in
+  `AddInfrastructure`.
 
 - **TuyaHub.Domain** — pure model, no framework/protocol deps.
   - **Aggregate root `Device`** (one Wind Calm unit; the consistency boundary) with entities
@@ -101,8 +121,11 @@ on top that TuyaNet lacks: **heartbeat (0x09)**, **background reconnect with bac
 ## Configuration model (`appsettings.json`)
 
 Three bound options sections (PRD §7): `KnxOptions`, `TuyaOptions` (a list of devices — IP, deviceId,
-localKey, protocolVersion), and `DeviceMappings` (per-device, keyed by `TuyaOptions.Devices[].Name`).
-Group addresses are held as **strings**; an **empty GA string disables that function**. Command and
+localKey, protocolVersion, and an optional **`Profile`** device-type id defaulting to `"wind-calm"`),
+and `DeviceMappings` (per-device, keyed by `TuyaOptions.Devices[].Name`). Each `DeviceMappings` entry is
+now a plain **capability-mapping-key → GA** dictionary (`DeviceMapping : Dictionary<string,string>`); the
+valid keys (`FanPowerCommand`, `FanPowerStatus`, …) are the ones the device's profile declares. Group
+addresses are held as **strings**; a **missing or empty GA string disables that function**. Command and
 status GAs are always separate. No rebuild required to add/remap a device.
 
 A fourth section, **`DashboardOptions`** (`Enabled` default true in the shipped `appsettings.json`,

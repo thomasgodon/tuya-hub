@@ -4,39 +4,24 @@ using TuyaHub.Domain.ValueObjects;
 namespace TuyaHub.Domain.Events;
 
 /// <summary>
-/// Domain events raised by the <see cref="Device"/> aggregate when its observed state changes.
-/// Each carries the <see cref="DeviceName"/> so a subscriber (the KNX ACL) can route it to the
-/// correct device's status group address. State-change events are raised only from authoritative
-/// device readback (<see cref="Device.ApplyReportedState"/>), never from unconfirmed commands.
+/// Domain events raised by a device aggregate when its observed state changes. Each carries the
+/// <see cref="DeviceName"/> so a subscriber (the KNX ACL) can route it to the correct device. State
+/// changes are raised only from authoritative device readback (<see cref="IDevice.ApplyReportedState"/>),
+/// never from unconfirmed commands.
 /// </summary>
 public interface IDeviceEvent : INotification
 {
     DeviceName Device { get; }
 }
 
-/// <summary>Fan power (DP 60) changed. Drives the fan-power status GA (DPT 1.001).</summary>
-public sealed record FanPowerChanged(DeviceName Device, bool IsOn) : IDeviceEvent;
-
 /// <summary>
-/// Fan speed status changed. Drives the fan-speed status GA (DPT 5.010): <see cref="StatusValue"/>
-/// is 0 when the fan is off, otherwise the level 1..6. Raised when either power or speed changes.
+/// One capability's observed value changed. The generic feedback event: the ACL looks up the device's
+/// profile binding for <see cref="Capability"/> and encodes <see cref="Value"/> onto its status group
+/// address. Replaces the former per-capability events (FanPowerChanged, LightBrightnessChanged, …) so a
+/// new device type raises the same event for its own capabilities without adding event types or handlers.
 /// </summary>
-public sealed record FanSpeedChanged(DeviceName Device, int StatusValue) : IDeviceEvent;
-
-/// <summary>Fan direction (DP 63) changed. Drives the direction status GA (DPT 1.001).</summary>
-public sealed record FanDirectionChanged(DeviceName Device, FanDirection Direction) : IDeviceEvent;
-
-/// <summary>Fan countdown (DP 64) changed. Drives the timer status GA (DPT 7.006).</summary>
-public sealed record FanTimerChanged(DeviceName Device, int Minutes) : IDeviceEvent;
-
-/// <summary>Light power (DP 20) changed. Drives the light-power status GA (DPT 1.001).</summary>
-public sealed record LightPowerChanged(DeviceName Device, bool IsOn) : IDeviceEvent;
-
-/// <summary>Light brightness (DP 22) changed. Drives the brightness status GA (DPT 5.001).</summary>
-public sealed record LightBrightnessChanged(DeviceName Device, Brightness Brightness) : IDeviceEvent;
-
-/// <summary>Light colour temperature (DP 23) changed. Drives the CCT status GA (DPT 5.001).</summary>
-public sealed record LightCctChanged(DeviceName Device, ColourTemperature ColourTemperature) : IDeviceEvent;
+public sealed record DeviceCapabilityChanged(DeviceName Device, CapabilityKey Capability, CapabilityValue Value)
+    : IDeviceEvent;
 
 /// <summary>The device could not be reached and has been marked offline.</summary>
 public sealed record DeviceWentOffline(DeviceName Device) : IDeviceEvent;

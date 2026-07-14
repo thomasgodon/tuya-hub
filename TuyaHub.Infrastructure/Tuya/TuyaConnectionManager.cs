@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using TuyaHub.Application.Abstractions;
 using TuyaHub.Domain.ValueObjects;
 using TuyaHub.Infrastructure.Options;
+using TuyaHub.Infrastructure.Profiles;
 
 namespace TuyaHub.Infrastructure.Tuya;
 
@@ -16,6 +17,7 @@ internal sealed class TuyaConnectionManager
 
     public TuyaConnectionManager(
         IOptions<TuyaOptions> options,
+        IDeviceProfileRegistry profiles,
         IDeviceStateIngestionService ingestion,
         ILoggerFactory loggerFactory)
     {
@@ -33,8 +35,9 @@ internal sealed class TuyaConnectionManager
         foreach (var device in tuya.Devices.Where(d => d.Enabled))
         {
             var name = DeviceName.Create(device.Name);
+            var profile = profiles.Get(device.Profile);
             _connections[name] = new TuyaConnection(
-                name, device, pollInterval, heartbeatInterval, livenessTimeout, connectTimeout,
+                name, device, profile, pollInterval, heartbeatInterval, livenessTimeout, connectTimeout,
                 backoffInitial, backoffMax, ingestion, logger);
         }
     }

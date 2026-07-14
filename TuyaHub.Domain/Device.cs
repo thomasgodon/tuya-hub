@@ -21,7 +21,7 @@ namespace TuyaHub.Domain;
 /// drive the KNX status group addresses.</item>
 /// </list>
 /// </summary>
-public sealed class Device
+public sealed class Device : IDevice
 {
     private readonly object _gate = new();
     private bool _hasReported;
@@ -187,48 +187,51 @@ public sealed class Device
 
             if (fanPowerChanged)
             {
-                events.Add(new FanPowerChanged(Name, Fan.Power));
+                Raise(events, WindCalmCapabilities.FanPower, CapabilityValue.Bool(Fan.Power));
             }
 
             if (full || Fan.SpeedStatus != oldSpeedStatus)
             {
-                events.Add(new FanSpeedChanged(Name, Fan.SpeedStatus));
+                Raise(events, WindCalmCapabilities.FanSpeed, CapabilityValue.Int(Fan.SpeedStatus));
             }
 
             if (report.FanDirection is { } direction && (full || Fan.Direction != direction))
             {
                 Fan.Direction = direction;
-                events.Add(new FanDirectionChanged(Name, direction));
+                Raise(events, WindCalmCapabilities.FanDirection, CapabilityValue.Int((int)direction));
             }
 
             if (report.FanTimer is { } timer && (full || Fan.Timer != timer))
             {
                 Fan.Timer = timer;
-                events.Add(new FanTimerChanged(Name, timer.Minutes));
+                Raise(events, WindCalmCapabilities.FanTimer, CapabilityValue.Int(timer.Minutes));
             }
 
             if (report.LightPower is { } lightPower && (full || Light.Power != lightPower))
             {
                 Light.Power = lightPower;
-                events.Add(new LightPowerChanged(Name, lightPower));
+                Raise(events, WindCalmCapabilities.LightPower, CapabilityValue.Bool(lightPower));
             }
 
             if (report.LightBrightness is { } brightness && (full || Light.Brightness != brightness))
             {
                 Light.Brightness = brightness;
-                events.Add(new LightBrightnessChanged(Name, brightness));
+                Raise(events, WindCalmCapabilities.LightBrightness, CapabilityValue.Int(brightness.ToPercent()));
             }
 
             if (report.LightCct is { } cct && (full || Light.ColourTemperature != cct))
             {
                 Light.ColourTemperature = cct;
-                events.Add(new LightCctChanged(Name, cct));
+                Raise(events, WindCalmCapabilities.LightCct, CapabilityValue.Int(cct.ToPercent()));
             }
 
             _hasReported = true;
             return events;
         }
     }
+
+    private void Raise(List<INotification> events, CapabilityKey capability, CapabilityValue value)
+        => events.Add(new DeviceCapabilityChanged(Name, capability, value));
 
     /// <summary>Marks the device unreachable. Idempotent — emits <see cref="DeviceWentOffline"/> only on transition.</summary>
     public IReadOnlyList<INotification> MarkOffline()

@@ -1,19 +1,26 @@
-# PRD — tuya-hub MVP: KNX bridge for Tuya Wind Calm
+# PRD — tuya-hub: a generic Tuya → KNX hub
 
 **Status:** Draft
 **Owner:** Thomas Godon
 **Date:** 2026-07-09
-**Related:** [Use cases](use-cases/README.md) · [Wind Calm use cases](use-cases/wind-calm/README.md)
+**Related:** [Use cases](use-cases/README.md) · [Wind Calm profile](use-cases/wind-calm/README.md)
+
+> **Scope note.** `tuya-hub` is a **generic** Tuya → KNX hub built around a **device-profile** model:
+> each supported device type is one profile (its Tuya datapoints ↔ domain ↔ KNX group objects), and a
+> new type is added by registering a profile — the shared plumbing and ACLs are not touched. The
+> **CREATE / IKOHS "Wind Calm"** ceiling-fan-with-light is the **first (and currently only) profile**.
+> This document originated as the Wind Calm MVP PRD; that scope is complete, and the tables below now
+> read as the concrete spec of profile #1 rather than as the whole product.
 
 ---
 
 ## 1. Summary
 
-`tuya-hub` is a C# (.NET 10) console/worker application that bridges **CREATE / IKOHS
-"Windcalm"** ceiling-fan-with-light devices to a **KNX** installation. Each Tuya device is
-controlled **locally over the LAN** (Tuya local protocol 3.3, per-device local key — no cloud
-dependency) and exposed as **KNX group objects** so it can be driven from, and report state back
-to, the KNX bus.
+`tuya-hub` is a C# (.NET 10) console/worker application that bridges **Tuya** smart-home devices to a
+**KNX** installation. Each Tuya device is controlled **locally over the LAN** (Tuya local protocol,
+per-device local key — no cloud dependency) and exposed as **KNX group objects** so it can be driven
+from, and report state back to, the KNX bus. Device types are pluggable via **profiles**; the first
+profile is the **CREATE / IKOHS "Wind Calm"** ceiling-fan-with-light (local protocol 3.3).
 
 The MVP explicitly **does not discover devices on the LAN**. Every device is declared statically
 in `appsettings.json` (IP, device id, local key, protocol version) and each device's functions are
@@ -37,7 +44,10 @@ already used in the **DsmrHub** project (`KnxOptions` + a group-address mapping 
 - Tuya Cloud connectivity (local protocol only).
 - REST API and WebSocket streaming (the top-level use cases describe these as a secondary surface;
   **out of scope for the MVP**, but the architecture must not preclude them).
-- Device types other than Wind Calm (`fsd`, protocol 3.3).
+- Additional device profiles beyond Wind Calm (`fsd`, protocol 3.3) were out of the original MVP.
+  The architecture now supports them: a new device type is a new registered **profile** (its own
+  aggregate + capability bindings) with **no changes to the shared ACLs**. Wind Calm remains the only
+  profile shipped today.
 - ~~A web dashboard/UI.~~ **Added post-MVP:** a **read-only** status dashboard (single static
   page + Server-Sent Events, served on Kestrel, gated by `DashboardOptions`) now lists every
   configured device with its live state. This is status feedback only — it does **not** add REST/WS
@@ -52,9 +62,11 @@ already used in the **DsmrHub** project (`KnxOptions` + a group-address mapping 
 | **KNX installation** | Sends commands and reads status via group addresses. |
 | **tuya-hub** | Keeps a persistent local connection to each device, translates both directions. |
 
-## 5. Device model (from the Wind Calm use cases)
+## 5. Device model — profile #1: Wind Calm (from the Wind Calm use cases)
 
-One physical unit = **two logical endpoints** (fan + light), controlled independently.
+The device model is **per profile**. This section specifies the first profile, Wind Calm; another
+device type would contribute its own capability table the same way. One physical Wind Calm unit =
+**two logical endpoints** (fan + light), controlled independently.
 
 | Group | DP | Code | Type | Range | Meaning |
 |-------|----|------|------|-------|---------|
@@ -110,6 +122,7 @@ distinguishes **command** vs **status** GAs.
     "Devices": [
       {
         "Name": "LivingRoomFan",      // stable key; ties a device to its KNX mapping
+        "Profile": "wind-calm",       // device type / profile id (optional; defaults to "wind-calm")
         "Enabled": true,
         "IpAddress": "192.168.0.50",
         "DeviceId": "xxxxxxxxxxxxxxxxxxxx",
@@ -133,6 +146,9 @@ distinguishes **command** vs **status** GAs.
 ```
 
 Rules (as in DsmrHub's `KnxMeterReadingHandler`):
+- Each device declares an optional **`Profile`** (default `"wind-calm"`); its profile decides which
+  capabilities exist and therefore which mapping keys are valid (`FanPowerCommand`, … for Wind Calm).
+  The `DeviceMappings` entry is a plain map of *capability mapping-key → group address*.
 - An **empty GA string disables** that function (mapping entry ignored).
 - On startup the bridge builds two lookups per device: capability→status telegram, and
   command-GA→(device, capability) so inbound `GroupValueWrite` telegrams are routed to the right
@@ -229,6 +245,26 @@ Data flow (the ACLs are the translation points; the aggregate holds the rules):
 KNX bus ──GroupValueWrite──▶ [KNX ACL] ──▶ Application ──▶ Device aggregate ──[Tuya ACL]──CONTROL──▶ device
 KNX bus ◀─Write/Respond── [KNX ACL] ◀── domain event ◀── Device aggregate ◀──[Tuya ACL]──dps push/poll── device
 ```
+
+### Device profiles (the genericity seam)
+
+Every fact that is specific to a device *type* — its Tuya DP numbers and wire shapes, its KNX DPT
+choices and mapping keys, its dashboard presentation — lives in one **`DeviceProfile`** (a table of
+`CapabilityBinding`s) in `Infrastructure/Profiles/`. The shared engines iterate that table:
+
+- the domain currency is generic — `DeviceCommand` / `DeviceReport` are capability-keyed bags (`CapabilityKey`)
+  behind Wind Calm's typed facade, and one `DeviceCapabilityChanged` event replaces the old per-capability
+  events;
+- the **Tuya codec** (`TuyaProfileCodec`) and the **KNX ACL** (`KnxBridge` store/command builders,
+  `KnxCommandTranslator`, the single `DeviceEventKnxHandler`) and the **dashboard projection** all read
+  the profile's bindings rather than a hard-coded fan/light switch;
+- a device declares its type via `TuyaOptions.Devices[].Profile` (default `wind-calm`), resolved by
+  `IDeviceProfileRegistry`.
+
+**Wind Calm is profile #1** (`WindCalmProfile`): its `Device` aggregate keeps the fan+light rules
+(dim-step, CCT flicker, MCU timer). Adding a device type = a new profile (+ its own aggregate and
+Application command records, auto-discovered by MediatR) and **one registration line** — no shared ACL
+file is edited.
 
 ## 10a. Tuya local-client decision (resolved)
 

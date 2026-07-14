@@ -27,11 +27,13 @@ local key) — there is no dependency on the Tuya Cloud for day-to-day operation
 
 ## Device-scoped use cases
 
-Detailed, per-capability use cases for specific supported devices live in subfolders:
+Each supported device type is a **profile** (its Tuya datapoints ↔ domain ↔ KNX group objects);
+adding a device type means registering a profile, not changing the shared bridge. Detailed,
+per-capability use cases for a profile's device live in subfolders:
 
-| Device | Use cases |
+| Device profile | Use cases |
 |--------|-----------|
-| CREATE / IKOHS **Windcalm** ceiling fan + light (`fsd`, protocol 3.3) | [wind-calm/](wind-calm/README.md) |
+| CREATE / IKOHS **Windcalm** ceiling fan + light (`fsd`, protocol 3.3) — profile #1 | [wind-calm/](wind-calm/README.md) |
 
 ## Use case template
 

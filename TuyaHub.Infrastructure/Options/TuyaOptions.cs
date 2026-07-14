@@ -31,11 +31,17 @@ public sealed class TuyaOptions
     public List<TuyaDeviceOptions> Devices { get; set; } = [];
 }
 
-/// <summary>One statically-configured Wind Calm device.</summary>
+/// <summary>One statically-configured device.</summary>
 public sealed class TuyaDeviceOptions
 {
     /// <summary>Stable key that ties this device to its <see cref="DeviceMapping"/> (by name).</summary>
     public string Name { get; set; } = default!;
+
+    /// <summary>
+    /// Device type / profile id (see the profile registry). Defaults to <c>wind-calm</c> so existing
+    /// configurations that omit it keep working; set it to a different profile to add another device type.
+    /// </summary>
+    public string Profile { get; set; } = "wind-calm";
 
     public bool Enabled { get; set; } = true;
 
