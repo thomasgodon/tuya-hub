@@ -161,5 +161,27 @@ The host ships as a container (`Dockerfile`, `docker-compose.yml`, `.env.example
   `.env.example` → `.env` (git-ignored), set device secrets (`LocalKey`) and the `DeviceMappings`
   group addresses (keyed by device `Name`). The shipped `appsettings.json` keeps everything
   `Enabled=false`; the `.env` enables and configures devices at runtime.
-- **Run**: `docker compose up -d` (or `docker build -t tuya-hub:local .` then
-  `docker run --rm --network host --env-file .env tuya-hub:local`).
+- **Run**: `docker compose pull && docker compose up -d` pulls the published image and starts it
+  (compose consumes `ghcr.io/thomasgodon/tuya-hub:latest`). For local dev without a pull, build
+  first: `docker build -t tuya-hub:local .` then
+  `docker run --rm --network host --env-file .env tuya-hub:local`.
+
+## Releasing (versioned Docker publish)
+
+Deployment images are published to **GitHub Container Registry** by
+`.github/workflows/docker-publish.yml`, mirroring the DsmrHub sibling repo. There is no version in
+any `.csproj` — the git tag *is* the version. To cut a release:
+
+```pwsh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Pushing a `v*` tag is the sole trigger. The workflow builds the root `Dockerfile` (linux/amd64) and
+pushes `ghcr.io/thomasgodon/tuya-hub` tagged `{version}` (e.g. `0.1.0`), `{major}.{minor}` (`0.1`),
+and `latest` — via `docker/metadata-action`, authenticated with the built-in `GITHUB_TOKEN`
+(`packages: write`), so no secret setup is needed.
+
+**One-time step:** the first publish creates a **private** GHCR package. Make it public
+(GitHub → repo → Packages → tuya-hub → Package settings) or `docker login ghcr.io` on the LAN host
+before `docker compose pull` can fetch it.
