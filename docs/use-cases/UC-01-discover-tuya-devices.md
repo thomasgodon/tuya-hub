@@ -5,17 +5,22 @@ network, so they can be added to the configuration.
 **Primary actor:** Operator (person setting up the bridge).
 **Stakeholders & interests:** Operator wants an accurate, low-effort inventory; end users want
 their devices to end up controllable.
-**Preconditions:** tuya-hub runs on a host in the same broadcast domain (LAN/VLAN) as the devices.
-**Trigger:** Operator runs the discovery command (e.g. `tuya-hub discover`).
+**Preconditions:** tuya-hub runs on a host in the same broadcast domain (LAN/VLAN) as the devices,
+with the dashboard enabled (`DashboardOptions.Enabled=true`).
+**Trigger:** tuya-hub is running with the dashboard enabled; discovery runs continuously in the
+background and the result is shown live on the dashboard.
 
 ## Main flow
-1. tuya-hub listens for Tuya UDP broadcast beacons on the standard discovery ports.
-2. For each beacon received it records the device ID (`gwId`), IP address, and advertised
-   protocol version.
-3. It de-duplicates by device ID across the listen window.
-4. After the listen window elapses, it prints a table of discovered devices: ID, IP, protocol
-   version, and whether a local key / mapping is already known for that ID.
-5. Operator uses the output to proceed with UC-02 (configuration).
+1. tuya-hub listens for Tuya UDP broadcast beacons on the standard discovery ports (6666/6667) via
+   TuyaNet's `TuyaScanner`.
+2. For each beacon received it records the device ID (`gwId`), IP address, advertised protocol
+   version, and product key.
+3. It de-duplicates by device ID and prunes entries whose beacon stops arriving, so the list reflects
+   currently-reachable devices.
+4. The dashboard shows a live "Discovered" section listing devices that are **not** already in the
+   configured device list (matched by device ID / `gwId`): ID, IP, protocol version, product key, and
+   a "needs local key" tag. Devices already configured never appear here.
+5. Operator uses the display to proceed with UC-02 (configuration).
 
 ## Alternate flows
 - **1a. Encrypted beacons (protocol 3.4/3.5):** payload is not readable without keys; tuya-hub
@@ -29,10 +34,13 @@ their devices to end up controllable.
   allow the operator to select an interface.
 
 ## Postconditions
-- A list of currently-reachable device IDs and IPs is available to the operator.
+- A list of currently-reachable, unconfigured device IDs and IPs is shown on the dashboard.
 - No configuration is modified by discovery alone (read-only operation).
 
-## Open questions
-- Should discovery persist results to a cache file, or always be live?
-- Do we auto-enrich with local keys pulled from a configured Tuya Cloud account, or stay fully
-  offline and require the operator to supply keys manually?
+## Resolved decisions
+- **Live, not cached:** the discovered list is an in-memory, TTL-pruned view of what is currently
+  broadcasting — it is not persisted to a cache file.
+- **Fully offline:** no Tuya Cloud enrichment. The beacon never carries the local key, so discovered
+  devices are flagged "needs local key" and the operator supplies the key manually (UC-02).
+- **Surface:** discovery is exposed only on the read-only web dashboard (gated by
+  `DashboardOptions.Enabled`), not as a separate CLI command.

@@ -57,7 +57,9 @@ control + status feedback.
 The MVP is deliberately narrow: statically-configured devices only (**no LAN discovery**, no cloud,
 no REST/WebSocket *control* — those are documented in `docs/use-cases/` as future/secondary surface
 but are explicitly out of MVP scope). A **read-only** status dashboard was added post-MVP (see below);
-it is status feedback only and does not open a control surface.
+it is status feedback only and does not open a control surface. The dashboard also shows a live list of
+Tuya devices **discovered** broadcasting on the LAN but not yet configured (passive UDP listen only —
+no control, no config writes).
 
 ## Architecture (Domain-Driven Design — see PRD §10)
 
@@ -105,7 +107,8 @@ status GAs are always separate. No rebuild required to add/remap a device.
 
 A fourth section, **`DashboardOptions`** (`Enabled` default true in the shipped `appsettings.json`,
 `Port` 8080), gates the read-only web dashboard. When `Enabled=false` the host binds no HTTP endpoint
-and behaves like the original worker.
+and behaves like the original worker. `DashboardOptions.Enabled` **also gates LAN discovery**: when the
+dashboard is off, the Tuya UDP scanner is not started and no discovery port is bound.
 
 ## Domain constraints that will bite you (from the Wind Calm use cases)
 
@@ -149,8 +152,11 @@ The host ships as a container (`Dockerfile`, `docker-compose.yml`, `.env.example
   copies `wwwroot/` physically into the image so the static page serves in Production.)
 - **Networking**: `network_mode: host` (Linux LAN host). Required because KNXnet/IP tunnelling
   (UDP 3671) needs the gateway's UDP replies routed back to the client, which Docker bridge NAT
-  breaks; Tuya local is outbound TCP 6668. Both target fixed LAN IPs — no ports are published. The
-  dashboard is reachable at `http://<host>:8080/` over the host network (`DashboardOptions__Port`).
+  breaks; Tuya local is outbound TCP 6668. Host networking is **also** what lets Tuya UDP discovery
+  beacons (broadcast on UDP 6666/6667) reach the container — the host firewall must allow inbound
+  UDP 6666/6667 for the "Discovered" dashboard list to populate. Both target fixed LAN IPs — no ports
+  are published. The dashboard is reachable at `http://<host>:8080/` over the host network
+  (`DashboardOptions__Port`).
 - **Config**: supplied via env vars (double-underscore binding), not baked into the image. Copy
   `.env.example` → `.env` (git-ignored), set device secrets (`LocalKey`) and the `DeviceMappings`
   group addresses (keyed by device `Name`). The shipped `appsettings.json` keeps everything

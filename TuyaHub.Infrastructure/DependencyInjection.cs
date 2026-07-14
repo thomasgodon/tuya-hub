@@ -37,6 +37,12 @@ public static class DependencyInjection
         services.AddSingleton<IDeviceGateway, TuyaDeviceGateway>();
         services.AddHostedService<TuyaConnectionSupervisor>();
 
+        // Passive LAN discovery: the store holds devices seen broadcasting on the network; the service
+        // wraps TuyaNet's scanner and feeds it. Surfaced on the dashboard only (gated by
+        // DashboardOptions.Enabled inside the service), so it lives alongside the Tuya ACL.
+        services.AddSingleton<TuyaDiscoveryStore>();
+        services.AddHostedService<TuyaDiscoveryService>();
+
         // KNX ACL (outbound / feedback path): the bridge owns the connection and status cache; its
         // supervisor opens the connection at startup; the handlers translate domain events to status
         // writes. Registered explicitly per event type (MediatR dispatches on the concrete type), as

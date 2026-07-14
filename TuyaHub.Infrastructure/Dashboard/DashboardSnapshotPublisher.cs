@@ -5,6 +5,7 @@ using TuyaHub.Application.Dashboard.Options;
 using TuyaHub.Domain;
 using TuyaHub.Infrastructure.Knx;
 using TuyaHub.Infrastructure.Options;
+using TuyaHub.Infrastructure.Tuya;
 
 namespace TuyaHub.Infrastructure.Dashboard;
 
@@ -22,20 +23,26 @@ internal sealed class DashboardSnapshotPublisher
     private readonly IDeviceRegistry _registry;
     private readonly IDeviceSnapshotBroadcaster _broadcaster;
     private readonly KnxBridge _knxBridge;
+    private readonly TuyaDiscoveryStore _discovery;
     private readonly KnxOptions _knxOptions;
+    private readonly TuyaOptions _tuyaOptions;
     private readonly DashboardOptions _dashboardOptions;
 
     public DashboardSnapshotPublisher(
         IDeviceRegistry registry,
         IDeviceSnapshotBroadcaster broadcaster,
         KnxBridge knxBridge,
+        TuyaDiscoveryStore discovery,
         IOptions<KnxOptions> knxOptions,
+        IOptions<TuyaOptions> tuyaOptions,
         IOptions<DashboardOptions> dashboardOptions)
     {
         _registry = registry;
         _broadcaster = broadcaster;
         _knxBridge = knxBridge;
+        _discovery = discovery;
         _knxOptions = knxOptions.Value;
+        _tuyaOptions = tuyaOptions.Value;
         _dashboardOptions = dashboardOptions.Value;
     }
 
@@ -51,11 +58,31 @@ internal sealed class DashboardSnapshotPublisher
             .Select(ToDto)
             .ToArray();
 
+        // Discovered devices that aren't already configured (matched by Tuya device id / gwId).
+        var configuredIds = _tuyaOptions.Devices
+            .Select(d => d.DeviceId)
+            .Where(id => string.IsNullOrWhiteSpace(id) is false)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var discovered = _discovery.Snapshot()
+            .Where(d => configuredIds.Contains(d.DeviceId) is false)
+            .OrderBy(d => d.IpAddress, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(d => d.DeviceId, StringComparer.OrdinalIgnoreCase)
+            .Select(d => new DiscoveredDeviceDto
+            {
+                DeviceId = d.DeviceId,
+                IpAddress = d.IpAddress,
+                ProtocolVersion = d.ProtocolVersion,
+                ProductKey = d.ProductKey
+            })
+            .ToArray();
+
         var snapshot = new DashboardSnapshot
         {
             Timestamp = DateTimeOffset.UtcNow,
             Knx = new KnxConnectionDto { Enabled = _knxOptions.Enabled, Connected = _knxBridge.IsConnected },
-            Devices = devices
+            Devices = devices,
+            Discovered = discovered
         };
 
         _broadcaster.Publish(JsonSerializer.Serialize(snapshot, JsonOptions));
