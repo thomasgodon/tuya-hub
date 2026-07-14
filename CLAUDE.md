@@ -55,8 +55,9 @@ protocol **3.3**, per-device local key, **no cloud**) and exposed as KNX group o
 control + status feedback.
 
 The MVP is deliberately narrow: statically-configured devices only (**no LAN discovery**, no cloud,
-no REST/WebSocket — those are documented in `docs/use-cases/` as future/secondary surface but are
-explicitly out of MVP scope).
+no REST/WebSocket *control* — those are documented in `docs/use-cases/` as future/secondary surface
+but are explicitly out of MVP scope). A **read-only** status dashboard was added post-MVP (see below);
+it is status feedback only and does not open a control surface.
 
 ## Architecture (Domain-Driven Design — see PRD §10)
 
@@ -85,7 +86,10 @@ translated. When implementing, keep protocol types out of `Domain`/`Application`
     `GroupValueWrite`/`RespondGroupValueAsync`), telegrams ↔ domain.
   - `Tuya/` — **Tuya ACL**: local client, `dps` ↔ domain datapoints.
   - `Options/` — `KnxOptions`, `TuyaOptions`, `DeviceMappingOptions`, config-backed `IDeviceRegistry`.
-- **TuyaHub** (host) — generic worker; composition root, DI via `AddInfrastructure(configuration)`.
+- **TuyaHub** (host) — `WebApplication` host (SDK `Microsoft.NET.Sdk.Web`); composition root, DI via
+  `AddApplication()` + `AddInfrastructure(configuration)`, plus the read-only web dashboard
+  (`Dashboard/DashboardEndpoints.cs` + `wwwroot/index.html`). The background services still run as
+  hosted services on the same host. When `DashboardOptions.Enabled=false` no HTTP endpoint is mapped.
 
 **Tuya local client decision (resolved, PRD §10a):** inside the Tuya ACL, adopt **`TuyaNet` by ClusterM**
 (NuGet) for the 3.3 codec/framing/AES — do **not** hand-roll protocol 3.3. Build a thin reliability layer
@@ -98,6 +102,10 @@ Three bound options sections (PRD §7): `KnxOptions`, `TuyaOptions` (a list of d
 localKey, protocolVersion), and `DeviceMappings` (per-device, keyed by `TuyaOptions.Devices[].Name`).
 Group addresses are held as **strings**; an **empty GA string disables that function**. Command and
 status GAs are always separate. No rebuild required to add/remap a device.
+
+A fourth section, **`DashboardOptions`** (`Enabled` default true in the shipped `appsettings.json`,
+`Port` 8080), gates the read-only web dashboard. When `Enabled=false` the host binds no HTTP endpoint
+and behaves like the original worker.
 
 ## Domain constraints that will bite you (from the Wind Calm use cases)
 
@@ -136,11 +144,13 @@ These are firmware/protocol quirks the code must respect — see `docs/use-cases
 The host ships as a container (`Dockerfile`, `docker-compose.yml`, `.env.example` at repo root).
 
 - **Image**: multi-stage — `dotnet/sdk:10.0` publishes only `TuyaHub/TuyaHub.csproj` (tests
-  excluded), `dotnet/runtime:10.0` (not aspnet — no web server) runs `TuyaHub.dll` as the non-root
-  `app` user.
+  excluded), `dotnet/aspnet:10.0` runs `TuyaHub.dll` as the non-root `app` user. (aspnet, not
+  runtime: the host serves the dashboard on Kestrel and needs the ASP.NET shared framework; `publish`
+  copies `wwwroot/` physically into the image so the static page serves in Production.)
 - **Networking**: `network_mode: host` (Linux LAN host). Required because KNXnet/IP tunnelling
   (UDP 3671) needs the gateway's UDP replies routed back to the client, which Docker bridge NAT
-  breaks; Tuya local is outbound TCP 6668. Both target fixed LAN IPs — no ports are published.
+  breaks; Tuya local is outbound TCP 6668. Both target fixed LAN IPs — no ports are published. The
+  dashboard is reachable at `http://<host>:8080/` over the host network (`DashboardOptions__Port`).
 - **Config**: supplied via env vars (double-underscore binding), not baked into the image. Copy
   `.env.example` → `.env` (git-ignored), set device secrets (`LocalKey`) and the `DeviceMappings`
   group addresses (keyed by device `Name`). The shipped `appsettings.json` keeps everything

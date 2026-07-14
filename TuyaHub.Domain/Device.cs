@@ -38,6 +38,31 @@ public sealed class Device
     public LightEndpoint Light { get; }
     public bool IsOnline { get; private set; }
 
+    /// <summary>
+    /// Takes a consistent snapshot of the aggregate's current state for read-only consumers (the web
+    /// dashboard). Computed under <c>_gate</c> — the same lock every mutator holds — so a concurrent
+    /// reader never observes a value the endpoint getters are mid-write.
+    /// </summary>
+    public DeviceStateSnapshot CaptureState()
+    {
+        lock (_gate)
+        {
+            return new DeviceStateSnapshot(
+                Name,
+                IsOnline,
+                Fan.Power,
+                Fan.SpeedStatus,
+                Fan.Direction,
+                Fan.Timer.Minutes,
+                Fan.Timer.IsRunning,
+                Light.Power,
+                Light.Brightness.Dp,
+                Light.Brightness.ToPercent(),
+                Light.ColourTemperature.Dp,
+                Light.ColourTemperature.ToPercent());
+        }
+    }
+
     // ---- Command path (pure: compute the intended write from current known state) ----
 
     /// <summary>Fan on/off (DP 60). UC-01: turning on does not force a speed — the device restores its last level.</summary>

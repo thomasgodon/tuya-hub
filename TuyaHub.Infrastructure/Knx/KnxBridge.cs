@@ -52,6 +52,9 @@ internal sealed class KnxBridge : IAsyncDisposable
     /// <summary>True when the KNX bus is enabled and at least one status or command GA is mapped.</summary>
     public bool HasWork => _options.Enabled && (_store.Count > 0 || _commandsByAddress.Count > 0);
 
+    /// <summary>True when the tunnelling connection is currently established (for the dashboard KNX pill).</summary>
+    public bool IsConnected => _bus?.ConnectionState == BusConnectionState.Connected;
+
     /// <summary>
     /// Establishes the tunnelling connection and subscribes to group messages, so read requests are
     /// answerable before the first status write and command writes are received from startup. No-op

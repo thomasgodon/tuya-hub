@@ -18,8 +18,10 @@ COPY . .
 RUN dotnet publish TuyaHub/TuyaHub.csproj -c Release -o /app --no-restore
 
 # --- Runtime stage -----------------------------------------------------------
-# runtime (not aspnet): the host is a Generic-Host worker with no web server.
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+# aspnet (not runtime): the host now serves the read-only status dashboard on
+# Kestrel, so it needs the Microsoft.AspNetCore.App shared framework. `publish`
+# copies wwwroot/ physically into /app, so the static page serves in Production.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app ./
 

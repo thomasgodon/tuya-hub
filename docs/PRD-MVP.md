@@ -38,7 +38,10 @@ already used in the **DsmrHub** project (`KnxOptions` + a group-address mapping 
 - REST API and WebSocket streaming (the top-level use cases describe these as a secondary surface;
   **out of scope for the MVP**, but the architecture must not preclude them).
 - Device types other than Wind Calm (`fsd`, protocol 3.3).
-- A web dashboard/UI.
+- ~~A web dashboard/UI.~~ **Added post-MVP:** a **read-only** status dashboard (single static
+  page + Server-Sent Events, served on Kestrel, gated by `DashboardOptions`) now lists every
+  configured device with its live state. This is status feedback only — it does **not** add REST/WS
+  device *control*, which remains out of scope.
 - Obtaining local keys (a manual, one-time operator task via the Tuya IoT platform).
 
 ## 4. Users & context
