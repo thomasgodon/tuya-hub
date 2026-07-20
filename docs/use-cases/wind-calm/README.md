@@ -27,7 +27,7 @@ controlled independently.
 | Fan | 62 | `fan_speed` | **int** | **1–6** | Fan speed level (**send as integer, never string**) |
 | Fan | 63 | `fan_direction` | enum | `forward` / `reverse` | Blade direction (summer / winter) |
 | Fan | 64 | `countdown_left_fan` | int | 0–540 (minutes) | Auto-off timer; **counted down by the device MCU** |
-| Fan | 66 | `fan_beep` | bool | true/false | Confirmation-beep enable |
+| Fan | 66 | `fan_beep` | bool | true/false | Confirmation beep — **not exposed; force-silenced (`false`) on every connect** so no LAN command beeps (UC-10). Some MCUs ignore it (hardware limit). |
 | Light | 20 | `switch_led` | bool | true/false | Light on/off |
 | Light | 22 | `bright_value` | int | 0–1000 | Brightness — **not exposed; hardware ignores the write** (DP present in firmware but has no effect) |
 | Light | 23 | `temp_value` | int | 0 / 500 / 1000 | Colour temperature (**optional — firmware flicker bug**) |
@@ -42,7 +42,6 @@ Command (KNX → Tuya) and feedback (Tuya → KNX) are **separate group addresse
 | Fan speed | 62 | **3.007** dim step (up/down) | **5.010** count (1–6; 0 = off) |
 | Fan direction | 63 | 1.001 (0 = forward/summer, 1 = reverse/winter) | 1.001 |
 | Fan timer | 64 | 7.006 minutes | 7.006 remaining |
-| Fan beep | 66 | 1.001 switch | 1.001 |
 | Light power | 20 | 1.001 switch | 1.001 |
 | Light CCT *(optional)* | 23 | 5.001 % → 3 steps | 5.001 % |
 
@@ -63,7 +62,7 @@ Command (KNX → Tuya) and feedback (Tuya → KNX) are **separate group addresse
 | [UC-07](UC-07-light-colour-temperature.md) | Light colour temperature from KNX *(optional)* | Light | KNX installation |
 | [UC-08](UC-08-report-state-to-knx.md) | Report device state to KNX (push + poll) | both | tuya-hub |
 | [UC-09](UC-09-device-offline-recovery.md) | Device offline / reconnect | both | tuya-hub |
-| [UC-10](UC-10-fan-beep.md) | Fan confirmation beep from KNX | Fan | KNX installation |
+| [UC-10](UC-10-fan-beep.md) | Fan confirmation beep from KNX — **removed (nuisance; force-silenced on connect)** | Fan | — |
 
 ## Cross-cutting notes / quirks
 

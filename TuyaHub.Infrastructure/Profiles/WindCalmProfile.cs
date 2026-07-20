@@ -84,17 +84,6 @@ internal static class WindCalmProfile
             },
             new CapabilityBinding
             {
-                Key = WindCalmCapabilities.FanBeep,
-                Dp = DpFanBeep,
-                EncodeDp = v => (bool)v,
-                DecodeDp = raw => Convert.ToBoolean(raw),
-                StatusMappingKey = "FanBeepStatus",
-                EncodeStatus = v => KnxDpt.Bool(v.AsBool()),
-                CommandMappingKey = "FanBeep",
-                BuildCommand = (device, payload) => new SetFanBeepCommand(device, KnxDpt.DecodeBool(payload)),
-            },
-            new CapabilityBinding
-            {
                 Key = WindCalmCapabilities.LightPower,
                 Dp = DpLightPower,
                 EncodeDp = v => (bool)v,
@@ -133,5 +122,9 @@ internal static class WindCalmProfile
                 EncodeStatus = v => KnxDpt.Bool(v.AsBool()),
             },
         ],
+        // Force the confirmation buzzer (DP 66) off on every connect so no LAN command beeps. Not exposed
+        // to KNX/dashboard — the beep is a pure nuisance. Silently ignored by firmware that doesn't
+        // implement DP 66 (e.g. the XW-FAN-215-D), which must be muted in hardware instead.
+        OnConnectDps = new Dictionary<string, object> { [DpFanBeep.ToString()] = false },
     };
 }

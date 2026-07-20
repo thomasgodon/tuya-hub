@@ -1,44 +1,30 @@
-# UC-10 — Fan confirmation beep from KNX
+# UC-10 — Fan confirmation beep from KNX — **REMOVED (nuisance-only; now force-silenced)**
 
-**Summary:** A KNX switch telegram enables or disables the fan's confirmation beep via Tuya DP 66
-(`fan_beep`); the current setting is reported back to KNX.
-**Primary actor:** KNX installation.
-**Stakeholders & interests:** Occupant (wants to silence/enable the audible confirmation); integrator
-(wants reliable command + feedback, consistent with the other boolean functions).
-**Preconditions:**
-- Device discovered, `local_key` configured, protocol set, persistent local socket up.
-- KNX gateway connected; command GA (DPT 1.001) and status GA (DPT 1.001) mapped to DP 66.
+> **This use case has been removed.** The confirmation beep (DP 66 `fan_beep`) was a pure nuisance:
+> the device beeps to acknowledge every LAN command, whereas the RF remote is silent. It is no longer
+> a user-controllable capability — there is **no KNX command/status GA and no dashboard chip** for it.
+> Instead the hub **force-silences it** on every connect. This document is kept for history.
 
-**Trigger:** A `GroupValueWrite` arrives on the fan-beep command GA.
+## What replaced it
 
-## Main flow
-1. Bridge receives a 1.001 telegram: `1` = beep on, `0` = beep off.
-2. Bridge issues `CONTROL 0x07` writing DP 66 = `true`/`false`.
-3. Device applies and returns/acknowledges the new `dps` state.
-4. Bridge reads back DP 66 and publishes it on the fan-beep **status GA**.
+The Wind Calm profile declares a connect-time baseline write (`DeviceProfile.OnConnectDps = {"66": false}`,
+set in `WindCalmProfile`). On each (re)connect, after the state-sync `DP_QUERY`, `TuyaConnection` sends
+that raw `CONTROL` once, so no subsequent LAN command beeps. It is a **blind, unconditional** write:
+- On a unit that implements DP 66 (e.g. the 3.5 `Windcalm-Windstylance`), the first write silences the
+  buzzer and it stays silent; at most one beep on a cold connect.
+- Empty for any profile that declares no `OnConnectDps` (other device types write nothing).
 
-## Alternate flows
-- **10a — Independent of fan power:** the beep setting is applied whether the fan is on or off; it does
-  not turn the fan on or off.
-- **10b — Idempotent command:** command equals current state → re-publish status; no write strictly
-  required.
-- **10c — Startup reconciliation (default silence):** DP 66 is a *persistent* buzzer-enable flag and the
-  firmware ships it **on**, so the module beeps to acknowledge every LAN `CONTROL` (the RF remote does
-  not). The hub therefore enforces a configured desired value once on each (re)connect: after the
-  post-connect `DP_QUERY` it compares the reported DP 66 to `TuyaOptions.Devices[].DesiredBeep`
-  (default `false`) and issues a single corrective write **only if they differ** (query-then-correct —
-  so no beep fires on connect and no redundant write is sent). This is one-shot per connect: a live KNX
-  fan-beep change (main flow) is honored and **not** reverted until the next reconnect. Set
-  `DesiredBeep: true` to keep the confirmation beep.
+## Hardware limit (some units can't be silenced)
 
-## Error scenarios
-- **Write not acknowledged / timeout:** retry once; if still failing, mark device offline (UC-09) and
-  leave the status GA at the last known value (do not echo an unconfirmed state).
-- **Per-device disable:** an empty/absent GA in `DeviceMappings` disables the beep command and/or
-  status for that device.
+DP 66 is only *advisory* in the Tuya cloud schema — a given MCU may not implement it. Confirmed on the
+**`XW-FAN-215-D`** (protocol 3.4): it never reports DP 66 and silently drops a `{"66":false}` write (the
+buzzer still sounds on every command). On such units the beep is **not software-controllable**; the only
+recourse is physically muting/removing the buzzer. The connect-time write still fires there but is a
+harmless no-op.
 
-## Postconditions
-- DP 66 reflects the commanded value and the fan-beep status GA matches the device.
+## History
 
-## Open questions
-- None.
+Originally (post-MVP) DP 66 was wired as a full user-controllable `FanBeep` capability — a KNX 1.001
+command + status GA (`1/1/11` / `1/1/12`) and a 🔔/🔕 dashboard chip — and later a `DesiredBeep` startup
+reconciliation. All of that was removed once it was clear the beep is only ever unwanted: the capability,
+its Application command/handler, the profile binding, the dashboard chip, and the config keys are gone.

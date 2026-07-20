@@ -38,16 +38,6 @@ public class KnxCommandTranslatorTests
     }
 
     [Theory]
-    [InlineData(0x01, true)]
-    [InlineData(0x00, false)]
-    public void FanBeep_maps_to_set_fan_beep(byte payload, bool expectedOn)
-    {
-        var command = Assert.IsType<SetFanBeepCommand>(Translate(WindCalmCapabilities.FanBeep, payload));
-        Assert.Equal(Fan, command.Device);
-        Assert.Equal(expectedOn, command.On);
-    }
-
-    [Theory]
     [InlineData(0x09, true)]    // up
     [InlineData(0x01, false)]   // down
     public void FanSpeedStep_maps_to_step_fan_speed(byte payload, bool expectedUp)

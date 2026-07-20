@@ -21,9 +21,6 @@ public sealed class FanEndpoint
     /// <summary>Remaining auto-off countdown (DP 64), owned by the device MCU.</summary>
     public CountdownTimer Timer { get; internal set; } = CountdownTimer.None;
 
-    /// <summary>Confirmation-beep enable (DP 66).</summary>
-    public bool Beep { get; internal set; }
-
     /// <summary>Speed as reported on the KNX 5.010 status GA: 0 when off, otherwise the level.</summary>
     public int SpeedStatus => Power ? Speed.Value : 0;
 }

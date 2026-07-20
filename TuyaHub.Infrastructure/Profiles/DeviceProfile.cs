@@ -18,4 +18,12 @@ internal sealed record DeviceProfile
 
     /// <summary>The capabilities this device type exposes (Tuya dps ↔ domain ↔ KNX group objects).</summary>
     public required IReadOnlyList<CapabilityBinding> Capabilities { get; init; }
+
+    /// <summary>
+    /// Raw datapoints written once on every (re)connect to force a device baseline the domain model does
+    /// not otherwise control — e.g. Wind Calm silences its confirmation buzzer (DP 66) so no LAN command
+    /// beeps. Keyed by DP-id string → wire value (the same shape <c>TuyaProfileCodec.ToDps</c> produces).
+    /// Empty by default, so other profiles write nothing.
+    /// </summary>
+    public IReadOnlyDictionary<string, object> OnConnectDps { get; init; } = new Dictionary<string, object>();
 }

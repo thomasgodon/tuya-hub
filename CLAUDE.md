@@ -48,21 +48,19 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   the `LightBrightness*` config keys are all gone. The light is **on/off (DP 20) + CCT (DP 23) only**.
   (UC-06 is kept as a doc, banner-marked *removed*.)
 
-- **Post-MVP — Fan beep added.** DP 66 (`fan_beep`, bool) was wired end-to-end as the `FanBeep`
-  capability, mirroring `FanPower`: a `WindCalmCapabilities.FanBeep` key, `FanEndpoint.Beep`, the
-  `DeviceCommand`/`DeviceReport` facade accessors + snapshot field, `Device.SetFanBeep` + its
-  `ApplyReportedState` readback branch, the `SetFanBeepCommand`/handler, the `WindCalmProfile`
-  `CapabilityBinding` (DPT 1.001 command + status, `FanBeep`/`FanBeepStatus` keys — shipped GAs
-  `1/1/11`/`1/1/12`), and a 🔔/🔕 chip on the dashboard fan card (`FanDto.Beep`). The KNX ACL and Tuya
-  codec needed no changes (table-driven). See UC-10.
-  - **Beep is silenced by default (startup reconciliation).** DP 66 is a *persistent* buzzer-enable flag
-    that ships **on**, so the module beeps on every LAN `CONTROL` (the RF remote does not). `TuyaConnection`
-    now enforces `TuyaOptions.Devices[].DesiredBeep` (bool, default `false`) once per (re)connect: after
-    the post-connect `DP_QUERY` it compares the reported DP 66 and issues one corrective `FanBeep` write
-    **only if it differs** (query-then-correct — no beep on connect, no redundant write). One-shot per
-    connect, so a live KNX fan-beep change is honored until the next reconnect. This lives entirely in
-    `TuyaConnection` (which already receives reports, sends commands, and has the per-device options); the
-    `report.FanBeep`/`DeviceCommand { FanBeep }` reference is inert for profiles without a beep. See UC-10 10c.
+- **Post-MVP — Fan beep removed; DP 66 force-silenced on connect.** The confirmation beep (DP 66
+  `fan_beep`) was briefly a full user-controllable `FanBeep` capability (KNX 1.001 command+status,
+  dashboard 🔔/🔕 chip, `DesiredBeep` reconciliation), but the beep is only ever a nuisance — the device
+  beeps on every LAN command while the RF remote is silent. So the whole capability was **removed
+  end-to-end** (the `WindCalmCapabilities.FanBeep` key, `FanEndpoint.Beep`, the `DeviceCommand`/
+  `DeviceReport` facades + snapshot field, `Device.SetFanBeep` + its `ApplyReportedState` branch, the
+  `SetFanBeepCommand`/handler, the `WindCalmProfile` binding, the `FanDto.Beep` chip, the `DesiredBeep`
+  option + `TuyaConnection` reconcile machinery, and the `FanBeep`/`FanBeepStatus` config keys are all
+  gone). Replaced by a hidden **always-silence**: `DeviceProfile.OnConnectDps` (a raw dp→value map,
+  empty by default) is set to `{"66": false}` by `WindCalmProfile`; on each (re)connect `TuyaConnection`
+  writes it once (blind, via `_codec.BuildControl`) right after the state-sync `DP_QUERY`. Inert for
+  profiles that declare no `OnConnectDps`, and a harmless no-op on firmware that doesn't implement DP 66
+  (e.g. the 3.4 `XW-FAN-215-D`, which must be muted in hardware). See UC-10.
 
 - **Post-MVP — CCT step/cycle (long-press) added.** A KNX pushbutton can now *cycle* CCT via a relative
   **DPT 3.007** command, coexisting with the existing absolute-% `LightCct` command (5.001). Added a

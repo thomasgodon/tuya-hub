@@ -16,7 +16,6 @@ public sealed record DeviceStateSnapshot(
     FanDirection FanDirection,
     int FanTimerMinutes,
     bool FanTimerRunning,
-    bool FanBeep,
     bool LightPower,
     int LightCctDp,
     int LightCctPercent)

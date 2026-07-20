@@ -56,13 +56,4 @@ public sealed class TuyaDeviceOptions
 
     /// <summary>Tuya local port; virtually always 6668.</summary>
     public int Port { get; set; } = 6668;
-
-    /// <summary>
-    /// Desired fan confirmation-beep state (DP 66) the hub enforces once on each (re)connect.
-    /// Default <c>false</c> silences the buzzer that otherwise sounds on every LAN command
-    /// (the RF remote never beeps). Applied query-then-correct — only written when the device
-    /// reports a different value. Live changes via the FanBeep KNX GA are honored until the
-    /// next reconnect. Inert for profiles without a beep capability.
-    /// </summary>
-    public bool DesiredBeep { get; set; } = false;
 }

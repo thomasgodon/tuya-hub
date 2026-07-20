@@ -110,8 +110,7 @@ internal sealed class DashboardSnapshotPublisher
                 SpeedStatus = state.FanSpeedStatus,
                 Direction = state.FanDirection.ToString(),
                 TimerMinutes = state.FanTimerMinutes,
-                TimerRunning = state.FanTimerRunning,
-                Beep = state.FanBeep
+                TimerRunning = state.FanTimerRunning
             },
             Light = new LightDto
             {

@@ -20,8 +20,9 @@ light treated as its own endpoint).
 - **05b — Idempotent command:** re-publish status; no write required.
 - **05c — No confirmation beep:** the light command produces a single DP 20 write and injects no beep.
   The module's audible acknowledgement on LAN commands is governed by the persistent DP 66 buzzer flag,
-  which the hub silences by default on connect (UC-10 10c) — so, unlike the RF remote path, an on/off
-  from KNX is silent once reconciled. Set `DesiredBeep: true` to keep the beep.
+  which the hub force-silences on every connect (UC-10) — so, unlike a device left on its factory
+  default, an on/off from KNX is silent. (Units whose firmware ignores DP 66 still beep — hardware
+  limit; see UC-10.)
 
 ## Error scenarios
 - **Write not acknowledged:** retry once; keep status GA at last confirmed value on failure.

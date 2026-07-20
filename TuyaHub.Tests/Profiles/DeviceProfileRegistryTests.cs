@@ -44,10 +44,18 @@ public class DeviceProfileRegistryTests
         Assert.Equal(62, dpByKey[WindCalmCapabilities.FanSpeed]);
         Assert.Equal(63, dpByKey[WindCalmCapabilities.FanDirection]);
         Assert.Equal(64, dpByKey[WindCalmCapabilities.FanTimer]);
-        Assert.Equal(66, dpByKey[WindCalmCapabilities.FanBeep]);
         Assert.Equal(20, dpByKey[WindCalmCapabilities.LightPower]);
         Assert.Equal(23, dpByKey[WindCalmCapabilities.LightCct]);
         Assert.Null(dpByKey[WellKnownCapabilities.Availability]);
+    }
+
+    [Fact]
+    public void Wind_calm_silences_the_beep_dp_on_connect()
+    {
+        // DP 66 is force-silenced on every connect (not exposed to KNX/dashboard) so no LAN command beeps.
+        var onConnect = WindCalmProfile.Create().OnConnectDps;
+
+        Assert.Equal(false, onConnect["66"]);
     }
 
     [Fact]
