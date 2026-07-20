@@ -305,8 +305,14 @@ library choice, so no library removes this work):
   `TuyaParser`/`TuyaDevice` is likely cleaner than fighting the public API. Confirm during M2.
 - **Dependency:** TuyaNet targets .NET Standard 2.0 (consumable from net10) and pulls in
   **Newtonsoft.Json** — acceptable, but the one external transitive to be aware of.
-- **No 3.4/3.5 headroom:** TuyaNet is 3.3-max. Fine for Wind Calm (`fsd`, 3.3). A future 3.4/3.5
-  device would require implementing the session-key handshake then — out of MVP scope.
+- **3.4/3.5 support (post-MVP, decision re-opened):** TuyaNet is 3.3-max and **no maintained .NET
+  library implements 3.4/3.5**, so support for those versions is a **hand-rolled codec** in the Tuya
+  ACL (`Infrastructure/Tuya/Codec/`), ported from tinytuya's `PROTOCOL.md`: the mandatory session-key
+  negotiation handshake (`SESS_KEY_NEG_START/RESP/FINISH`), 3.4's `55AA` + HMAC-SHA256 + session-keyed
+  AES-ECB, and 3.5's `6699` + AES-GCM frames, using built-in `System.Security.Cryptography`. This
+  **re-opens** the "do not hand-roll protocol 3.3" decision **only for 3.4/3.5** — 3.1/3.3 still go
+  through TuyaNet unchanged. GPL note above is unaffected (the hand-rolled codec is our own code;
+  TuyaNet remains a dependency for 3.1/3.3).
 
 ## 11. Milestones
 

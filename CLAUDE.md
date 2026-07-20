@@ -114,9 +114,19 @@ that table, so **adding a device type is registering a profile — no shared ACL
   hosted services on the same host. When `DashboardOptions.Enabled=false` no HTTP endpoint is mapped.
 
 **Tuya local client decision (resolved, PRD §10a):** inside the Tuya ACL, adopt **`TuyaNet` by ClusterM**
-(NuGet) for the 3.3 codec/framing/AES — do **not** hand-roll protocol 3.3. Build a thin reliability layer
-on top that TuyaNet lacks: **heartbeat (0x09)**, **background reconnect with backoff**, and a
+(NuGet) for the **3.1/3.3** codec/framing/AES — do **not** hand-roll protocol 3.3. Build a thin reliability
+layer on top that TuyaNet lacks: **heartbeat (0x09)**, **background reconnect with backoff**, and a
 **pushed-STATUS read loop** (TuyaNet is poll-only). Note TuyaNet is **GPL-3.0** and pulls in Newtonsoft.Json.
+
+**Protocol versions & the codec seam.** All wire concerns sit behind `ITuyaCodec` (`Infrastructure/Tuya/Codec/`),
+selected per device by `TuyaCodecFactory` from the configured `ProtocolVersion`. Two implementations:
+`TuyaNetCodec` (3.1/3.3, delegating to TuyaNet) and **`TuyaSessionCodec` (3.4/3.5, hand-rolled)** — TuyaNet
+is 3.3-max and no maintained .NET library does 3.4/3.5. The hand-rolled codec (ported from tinytuya
+`PROTOCOL.md`, using built-in `System.Security.Cryptography`) performs the mandatory session-key handshake
+(`SESS_KEY_NEG_START/RESP/FINISH`) that 3.4/3.5 require before any DP traffic, then 3.4's `55AA` + HMAC-SHA256
++ session-keyed AES-ECB or 3.5's `6699` + AES-GCM framing (`TuyaFrame`/`TuyaCrypto`). `TuyaConnection` is now
+transport-only: it owns the socket + reliability layer, calls `NegotiateSessionAsync` on every (re)connect,
+and routes all framing through the codec. `TuyaProfileCodec` (dps ↔ domain) is version-agnostic and unchanged.
 
 ## Configuration model (`appsettings.json`)
 
@@ -136,9 +146,11 @@ dashboard is off, the Tuya UDP discovery listener is not started and no discover
 LAN discovery uses our own `TuyaLanDiscoveryListener` (`Infrastructure/Tuya/`), not TuyaNet's
 `TuyaScanner`: the scanner decoded beacons on a library-owned thread that **rethrew** any decode failure,
 so a single undecodable datagram (a protocol-3.5 `00 00 66 99` beacon, or junk UDP) crashed the whole
-host. The listener binds the same ports (6666/6667), reuses TuyaNet's codec (`internal TuyaParser`, via a
-cached reflection delegate — the PRD forbids hand-rolling 3.3), but decodes each packet inside a
-`try/catch` so bad beacons are logged and skipped. 3.5 devices are not discoverable (framing unsupported).
+host. The listener binds the same ports (6666/6667) and decodes each packet inside a `try/catch` so bad
+beacons are logged and skipped: `00 00 55 AA` beacons (3.1–3.4) via TuyaNet's codec (`internal TuyaParser`,
+cached reflection delegate — the PRD forbids hand-rolling 3.3), and `00 00 66 99` beacons (3.5) via the
+hand-rolled `TuyaFrame.Parse6699` AES-GCM path. Both use the universal UDP key, so **3.5 devices are now
+discoverable** too.
 
 ## Domain constraints that will bite you (from the Wind Calm use cases)
 

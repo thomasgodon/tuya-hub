@@ -6,6 +6,7 @@ using System.Text;
 using com.clusterrr.TuyaNet;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using TuyaHub.Infrastructure.Tuya.Codec;
 
 namespace TuyaHub.Infrastructure.Tuya;
 
@@ -115,25 +116,33 @@ internal sealed class TuyaLanDiscoveryListener : IAsyncDisposable
             }
 
             // Per-packet decode boundary — the crash-safety this whole class exists for. An undecodable
-            // beacon (protocol-3.5 66 99 frame, junk UDP, truncated packet) is skipped, not fatal.
+            // beacon (junk UDP, truncated packet, unsupported framing) is skipped, not fatal.
             try
             {
-                // Cheap prefix gate: skip anything that isn't a 00 00 55 AA frame before touching the codec.
-                // This silently drops protocol-3.5 (00 00 66 99) beacons and non-Tuya traffic.
-                if (data.Length < 4 || data[2] != 0x55 || data[3] != 0xAA)
+                // Prefix gate. 00 00 55 AA is 3.1-3.4 (AES-ECB); 00 00 66 99 is 3.5 (AES-GCM). Both use
+                // the same universal UDP key; anything else (non-Tuya traffic) is skipped.
+                string? json;
+                if (data.Length >= 4 && data[2] == 0x55 && data[3] == 0xAA)
+                {
+                    json = _decode(data, _aesKey, version).JSON;
+                }
+                else if (data.Length >= 4 && data[2] == 0x66 && data[3] == 0x99)
+                {
+                    json = DecodeBeacon6699(data);
+                }
+                else
                 {
                     continue;
                 }
 
-                var response = _decode(data, _aesKey, version);
-                if (string.IsNullOrEmpty(response.JSON))
+                if (string.IsNullOrEmpty(json))
                 {
                     continue;
                 }
 
                 // Newtonsoft matches gwId->GwId etc. case-insensitively; this is exactly what
                 // TuyaScanner.Parse does with the same public model.
-                var info = JsonConvert.DeserializeObject<TuyaDeviceScanInfo>(response.JSON);
+                var info = JsonConvert.DeserializeObject<TuyaDeviceScanInfo>(json);
                 if (info is null || string.IsNullOrWhiteSpace(info.GwId))
                 {
                     continue;
@@ -146,6 +155,18 @@ internal sealed class TuyaLanDiscoveryListener : IAsyncDisposable
                 _logger.LogDebug(ex, "Skipped an undecodable Tuya discovery packet on UDP {Port}.", version == TuyaProtocolVersion.V31 ? Udp31Port : Udp33Port);
             }
         }
+    }
+
+    /// <summary>
+    /// Decodes a protocol-3.5 (<c>00 00 66 99</c>) beacon: AES-GCM under the same universal UDP key, then
+    /// the JSON body (which starts at the first <c>{</c>, after any return code / padding). Returns null if
+    /// there is no JSON to parse; decode failures throw and are caught by the per-packet boundary.
+    /// </summary>
+    private string? DecodeBeacon6699(byte[] datagram)
+    {
+        var (_, plaintext) = TuyaFrame.Parse6699(datagram, _aesKey);
+        var start = Array.IndexOf(plaintext, (byte)'{');
+        return start < 0 ? null : Encoding.UTF8.GetString(plaintext, start, plaintext.Length - start);
     }
 
     public async ValueTask DisposeAsync()

@@ -1,7 +1,5 @@
 using System.Net.Sockets;
-using com.clusterrr.TuyaNet;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using TuyaHub.Application.Abstractions;
 using TuyaHub.Domain;
@@ -9,13 +7,14 @@ using TuyaHub.Domain.ValueObjects;
 using TuyaHub.Infrastructure.Options;
 using TuyaHub.Infrastructure.Profiles;
 using TuyaHub.Infrastructure.Resilience;
+using TuyaHub.Infrastructure.Tuya.Codec;
 
 namespace TuyaHub.Infrastructure.Tuya;
 
 /// <summary>
-/// A supervised, persistent local connection to one device. TuyaNet is used purely as the
-/// 3.3 codec (<see cref="TuyaDevice.EncodeRequest"/> / <see cref="TuyaDevice.DecodeResponse"/>); this
-/// class owns the single TCP socket and adds the reliability layer TuyaNet lacks:
+/// A supervised, persistent local connection to one device. All wire concerns (framing, encryption,
+/// and the 3.4/3.5 session handshake) live behind <see cref="ITuyaCodec"/>; this class is transport-only
+/// and owns the single TCP socket plus the reliability layer the codec lacks:
 /// <list type="bullet">
 /// <item>a <b>heartbeat</b> to keep the module from dropping the idle socket (~30 s);</item>
 /// <item>a continuous <b>read loop</b> that decodes unsolicited STATUS pushes into domain reports;</item>
@@ -38,18 +37,10 @@ internal sealed class TuyaConnection(
     IDeviceStateIngestionService ingestion,
     ILogger logger)
 {
-    private static readonly byte[] FramePrefix = [0x00, 0x00, 0x55, 0xAA];
-
     /// <summary>Monotonic timestamp (ms) of the last inbound byte; drives the liveness watchdog.</summary>
     private long _lastInboundTicks;
 
-    private readonly TuyaDevice _codec = new(
-        options.IpAddress,
-        options.LocalKey,
-        options.DeviceId,
-        options.ProtocolVersion == ProtocolVersion.V31 ? TuyaProtocolVersion.V31 : TuyaProtocolVersion.V33,
-        options.Port,
-        receiveTimeout: 250);
+    private readonly ITuyaCodec _codec = TuyaCodecFactory.Create(name, options, connectTimeout, logger);
 
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly List<byte> _buffer = new(1024);
@@ -71,6 +62,8 @@ internal sealed class TuyaConnection(
             try
             {
                 await ConnectAsync(cancellationToken);
+                // 3.4/3.5 negotiate a per-connection session key before any DP traffic; no-op for 3.1/3.3.
+                await _codec.NegotiateSessionAsync(_stream!, cancellationToken);
                 logger.LogInformation("Connected to Tuya device {Device} at {Ip}.", name, options.IpAddress);
                 await ingestion.ReportConnectivityAsync(name, online: true, cancellationToken);
                 backoff.Reset();
@@ -139,9 +132,7 @@ internal sealed class TuyaConnection(
         }
 
         var dps = TuyaProfileCodec.ToDps(profile, command);
-        var json = JsonConvert.SerializeObject(new Dictionary<string, object> { ["dps"] = dps });
-        json = _codec.FillJson(json);
-        var frame = _codec.EncodeRequest(TuyaCommand.CONTROL, json);
+        var frame = _codec.BuildControl(dps);
         await WriteAsync(frame, cancellationToken);
     }
 
@@ -160,14 +151,12 @@ internal sealed class TuyaConnection(
 
     private async Task SendQueryAsync(CancellationToken cancellationToken)
     {
-        var frame = _codec.EncodeRequest(TuyaCommand.DP_QUERY, _codec.FillJson(null));
-        await WriteAsync(frame, cancellationToken);
+        await WriteAsync(_codec.BuildQuery(), cancellationToken);
     }
 
     private async Task SendHeartbeatAsync(CancellationToken cancellationToken)
     {
-        var frame = _codec.EncodeRequest(TuyaCommand.HEART_BEAT, "{}");
-        await WriteAsync(frame, cancellationToken);
+        await WriteAsync(_codec.BuildHeartbeat(), cancellationToken);
     }
 
     private async Task WriteAsync(byte[] frame, CancellationToken cancellationToken)
@@ -206,46 +195,22 @@ internal sealed class TuyaConnection(
 
     private async Task ProcessBufferAsync(CancellationToken cancellationToken)
     {
-        while (true)
+        // The codec pulls one frame per call and decodes it; a null json is an ack/undecodable frame.
+        while (_codec.TryReadMessage(_buffer, out var json))
         {
-            AlignToPrefix();
-            if (_buffer.Count < 16)
+            if (json is not null)
             {
-                return;
+                await HandleJsonAsync(json, cancellationToken);
             }
-
-            var length = (_buffer[12] << 24) | (_buffer[13] << 16) | (_buffer[14] << 8) | _buffer[15];
-            var frameSize = 16 + length;
-            if (length <= 0 || frameSize > 1 << 20)
-            {
-                // Corrupt length; drop the prefix and resynchronise.
-                _buffer.RemoveRange(0, 4);
-                continue;
-            }
-
-            if (_buffer.Count < frameSize)
-            {
-                return;
-            }
-
-            var frame = _buffer.GetRange(0, frameSize).ToArray();
-            _buffer.RemoveRange(0, frameSize);
-            await HandleFrameAsync(frame, cancellationToken);
         }
     }
 
-    private async Task HandleFrameAsync(byte[] frame, CancellationToken cancellationToken)
+    private async Task HandleJsonAsync(string json, CancellationToken cancellationToken)
     {
         DeviceReport report;
         try
         {
-            var response = _codec.DecodeResponse(frame);
-            if (string.IsNullOrEmpty(response.JSON))
-            {
-                return; // heartbeat ack / empty acknowledgement
-            }
-
-            var root = JObject.Parse(response.JSON);
+            var root = JObject.Parse(json);
             var dpsToken = root["dps"] as JObject ?? (root["data"] as JObject)?["dps"] as JObject;
             if (dpsToken is null)
             {
@@ -270,52 +235,11 @@ internal sealed class TuyaConnection(
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Failed to decode a frame from device {Device}; ignoring.", name);
+            logger.LogDebug(ex, "Failed to interpret a status payload from device {Device}; ignoring.", name);
             return;
         }
 
         await ingestion.ReportStateAsync(name, report, cancellationToken);
-    }
-
-    private void AlignToPrefix()
-    {
-        if (StartsWithPrefix(0))
-        {
-            return;
-        }
-
-        for (var i = 1; i <= _buffer.Count - FramePrefix.Length; i++)
-        {
-            if (StartsWithPrefix(i))
-            {
-                _buffer.RemoveRange(0, i);
-                return;
-            }
-        }
-
-        // No prefix found; keep only the last 3 bytes (a prefix may be split across reads).
-        if (_buffer.Count > FramePrefix.Length - 1)
-        {
-            _buffer.RemoveRange(0, _buffer.Count - (FramePrefix.Length - 1));
-        }
-    }
-
-    private bool StartsWithPrefix(int offset)
-    {
-        if (offset + FramePrefix.Length > _buffer.Count)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < FramePrefix.Length; i++)
-        {
-            if (_buffer[offset + i] != FramePrefix[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)
