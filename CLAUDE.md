@@ -52,12 +52,12 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   capability, mirroring `FanPower`: a `WindCalmCapabilities.FanBeep` key, `FanEndpoint.Beep`, the
   `DeviceCommand`/`DeviceReport` facade accessors + snapshot field, `Device.SetFanBeep` + its
   `ApplyReportedState` readback branch, the `SetFanBeepCommand`/handler, the `WindCalmProfile`
-  `CapabilityBinding` (DPT 1.001 command + status, `FanBeepCommand`/`FanBeepStatus` keys — shipped GAs
+  `CapabilityBinding` (DPT 1.001 command + status, `FanBeep`/`FanBeepStatus` keys — shipped GAs
   `1/1/11`/`1/1/12`), and a 🔔/🔕 chip on the dashboard fan card (`FanDto.Beep`). The KNX ACL and Tuya
   codec needed no changes (table-driven). See UC-10.
 
 - **Post-MVP — CCT step/cycle (long-press) added.** A KNX pushbutton can now *cycle* CCT via a relative
-  **DPT 3.007** command, coexisting with the existing absolute-% `LightCctCommand` (5.001). Added a
+  **DPT 3.007** command, coexisting with the existing absolute-% `LightCct` command (5.001). Added a
   command-only `WindCalmCapabilities.LightCctStep` key + a *second* `WindCalmProfile` `CapabilityBinding`
   (no dps/status of its own — `CommandMappingKey = "LightCctStep"`, decodes via `KnxDpt.DecodeDimStep`,
   reuses DP 23's encoding/status), `StepLightCctCommand`/handler mirroring `StepFanSpeed`, and
@@ -159,7 +159,7 @@ Three bound options sections (PRD §7): `KnxOptions`, `TuyaOptions` (a list of d
 localKey, protocolVersion, and an optional **`Profile`** device-type id defaulting to `"wind-calm"`),
 and `DeviceMappings` (per-device, keyed by `TuyaOptions.Devices[].Name`). Each `DeviceMappings` entry is
 now a plain **capability-mapping-key → GA** dictionary (`DeviceMapping : Dictionary<string,string>`); the
-valid keys (`FanPowerCommand`, `FanPowerStatus`, …) are the ones the device's profile declares. Group
+valid keys (`FanPower`, `FanPowerStatus`, …) are the ones the device's profile declares. Group
 addresses are held as **strings**; a **missing or empty GA string disables that function**. Command and
 status GAs are always separate. No rebuild required to add/remap a device.
 

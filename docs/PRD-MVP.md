@@ -133,13 +133,13 @@ distinguishes **command** vs **status** GAs.
   },
   "DeviceMappings": {
     "LivingRoomFan": {                // key == TuyaOptions.Devices[].Name
-      "FanPowerCommand": "1/1/1",     "FanPowerStatus": "1/1/2",
+      "FanPower": "1/1/1",            "FanPowerStatus": "1/1/2",
       "FanSpeedStep":    "1/1/3",     "FanSpeedStatus": "1/1/4",
-      "FanDirectionCommand": "1/1/5", "FanDirectionStatus": "1/1/6",
-      "FanTimerCommand": "1/1/7",     "FanTimerStatus": "1/1/8",
-      "LightPowerCommand": "1/1/9",   "LightPowerStatus": "1/1/10",
-      "LightBrightnessCommand": "1/1/11", "LightBrightnessStatus": "1/1/12",
-      "LightCctCommand": "1/1/13",    "LightCctStatus": "1/1/14"   // in scope; leave "" to disable per device
+      "FanDirection": "1/1/5",        "FanDirectionStatus": "1/1/6",
+      "FanTimer": "1/1/7",            "FanTimerStatus": "1/1/8",
+      "LightPower": "1/1/9",          "LightPowerStatus": "1/1/10",
+      "LightBrightness": "1/1/11",    "LightBrightnessStatus": "1/1/12",
+      "LightCct": "1/1/13",           "LightCctStatus": "1/1/14"   // in scope; leave "" to disable per device
     }
   }
 }
@@ -147,7 +147,7 @@ distinguishes **command** vs **status** GAs.
 
 Rules (as in DsmrHub's `KnxMeterReadingHandler`):
 - Each device declares an optional **`Profile`** (default `"wind-calm"`); its profile decides which
-  capabilities exist and therefore which mapping keys are valid (`FanPowerCommand`, … for Wind Calm).
+  capabilities exist and therefore which mapping keys are valid (`FanPower`, … for Wind Calm).
   The `DeviceMappings` entry is a plain map of *capability mapping-key → group address*.
 - An **empty GA string disables** that function (mapping entry ignored).
 - On startup the bridge builds two lookups per device: capability→status telegram, and

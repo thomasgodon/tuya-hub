@@ -34,7 +34,7 @@ internal sealed record CapabilityBinding
     public Func<CapabilityValue, byte[]>? EncodeStatus { get; init; }
 
     // ---- KNX command (inbound) ----
-    /// <summary>The <c>DeviceMapping</c> key of the command GA (e.g. "FanPowerCommand"), or null.</summary>
+    /// <summary>The <c>DeviceMapping</c> key of the command GA (e.g. "FanPower"), or null.</summary>
     public string? CommandMappingKey { get; init; }
 
     /// <summary>Decodes an inbound command-GA payload into the Application command, or null for a no-op.</summary>

@@ -9,11 +9,11 @@ trade-off and may choose to disable this UC).
 - Device online; DP 23 mapped. Because the device exposes only **three** steps, KNX carries them as
   a 5.001 % band or an explicit 3-value enum:
   - `0` = cool/white, `500` = warm-white, `1000` = warm.
-**Trigger:** A `GroupValueWrite` arrives on the CCT command GA (absolute `LightCctCommand`) **or** the
+**Trigger:** A `GroupValueWrite` arrives on the CCT command GA (absolute `LightCct`) **or** the
 CCT step GA (relative `LightCctStep`).
 
 The device exposes CCT to KNX **two ways**, independently configurable (either, both, or neither):
-- **Absolute — `LightCctCommand` (DPT 5.001 %)**: a percentage snapped to the nearest step. Good for
+- **Absolute — `LightCct` (DPT 5.001 %)**: a percentage snapped to the nearest step. Good for
   scenes / "jump to this temperature".
 - **Relative — `LightCctStep` (DPT 3.007 dim step)**: a long-press cycles the steps
   cool → warm-white → warm → cool …, **wrapping** at the rails (1000 up → 0, 0 down → 1000). Good for a

@@ -42,7 +42,7 @@ internal static class WindCalmProfile
                 DecodeDp = raw => Convert.ToBoolean(raw),
                 StatusMappingKey = "FanPowerStatus",
                 EncodeStatus = v => KnxDpt.Bool(v.AsBool()),
-                CommandMappingKey = "FanPowerCommand",
+                CommandMappingKey = "FanPower",
                 BuildCommand = (device, payload) => new SetFanPowerCommand(device, KnxDpt.DecodeBool(payload)),
             },
             new CapabilityBinding
@@ -67,7 +67,7 @@ internal static class WindCalmProfile
                     : FanDirection.Forward,
                 StatusMappingKey = "FanDirectionStatus",
                 EncodeStatus = v => KnxDpt.Bool(v.AsInt() != 0),
-                CommandMappingKey = "FanDirectionCommand",
+                CommandMappingKey = "FanDirection",
                 BuildCommand = (device, payload) => new SetFanDirectionCommand(
                     device, KnxDpt.DecodeBool(payload) ? FanDirection.Reverse : FanDirection.Forward),
             },
@@ -79,7 +79,7 @@ internal static class WindCalmProfile
                 DecodeDp = raw => CountdownTimer.FromMinutes(Convert.ToInt32(raw)),
                 StatusMappingKey = "FanTimerStatus",
                 EncodeStatus = v => KnxDpt.Minutes(v.AsInt()),
-                CommandMappingKey = "FanTimerCommand",
+                CommandMappingKey = "FanTimer",
                 BuildCommand = (device, payload) => new SetFanTimerCommand(device, KnxDpt.DecodeMinutes(payload)),
             },
             new CapabilityBinding
@@ -90,7 +90,7 @@ internal static class WindCalmProfile
                 DecodeDp = raw => Convert.ToBoolean(raw),
                 StatusMappingKey = "FanBeepStatus",
                 EncodeStatus = v => KnxDpt.Bool(v.AsBool()),
-                CommandMappingKey = "FanBeepCommand",
+                CommandMappingKey = "FanBeep",
                 BuildCommand = (device, payload) => new SetFanBeepCommand(device, KnxDpt.DecodeBool(payload)),
             },
             new CapabilityBinding
@@ -101,7 +101,7 @@ internal static class WindCalmProfile
                 DecodeDp = raw => Convert.ToBoolean(raw),
                 StatusMappingKey = "LightPowerStatus",
                 EncodeStatus = v => KnxDpt.Bool(v.AsBool()),
-                CommandMappingKey = "LightPowerCommand",
+                CommandMappingKey = "LightPower",
                 BuildCommand = (device, payload) => new SetLightPowerCommand(device, KnxDpt.DecodeBool(payload)),
             },
             new CapabilityBinding
@@ -112,7 +112,7 @@ internal static class WindCalmProfile
                 DecodeDp = raw => ColourTemperature.FromDp(Convert.ToInt32(raw)),
                 StatusMappingKey = "LightCctStatus",
                 EncodeStatus = v => KnxDpt.Percent(v.AsInt()),
-                CommandMappingKey = "LightCctCommand",
+                CommandMappingKey = "LightCct",
                 BuildCommand = (device, payload) => new SetLightCctCommand(device, KnxDpt.DecodePercent(payload)),
             },
             new CapabilityBinding

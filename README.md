@@ -153,12 +153,12 @@ disables** that function.
 ```jsonc
 "DeviceMappings": {
   "LivingRoomFan": {
-    "FanPowerCommand": "1/1/1",       "FanPowerStatus": "1/1/2",
+    "FanPower": "1/1/1",              "FanPowerStatus": "1/1/2",
     "FanSpeedStep": "1/1/3",          "FanSpeedStatus": "1/1/4",
-    "FanDirectionCommand": "1/1/5",   "FanDirectionStatus": "1/1/6",
-    "FanTimerCommand": "1/1/7",       "FanTimerStatus": "1/1/8",
-    "LightPowerCommand": "1/1/9",     "LightPowerStatus": "1/1/10",
-    "LightCctCommand": "1/1/13",      "LightCctStatus": "1/1/14",
+    "FanDirection": "1/1/5",          "FanDirectionStatus": "1/1/6",
+    "FanTimer": "1/1/7",              "FanTimerStatus": "1/1/8",
+    "LightPower": "1/1/9",            "LightPowerStatus": "1/1/10",
+    "LightCct": "1/1/13",             "LightCctStatus": "1/1/14",
     "LightCctStep": "1/1/16",
     "AvailabilityStatus": "1/1/15"
   }
@@ -169,13 +169,13 @@ Valid mapping keys for the **wind-calm** profile, with their Tuya DP and KNX DPT
 
 | Mapping key | Direction | Tuya DP | KNX DPT |
 |-------------|-----------|---------|---------|
-| `FanPowerCommand` / `FanPowerStatus` | ⇄ | 60 | 1.001 switch |
+| `FanPower` / `FanPowerStatus` | ⇄ | 60 | 1.001 switch |
 | `FanSpeedStep` | KNX → device | 62 | **3.007** dim step (relative, no feedback) |
 | `FanSpeedStatus` | device → KNX | 62 | **5.010** count (1–6; 0 = off) |
-| `FanDirectionCommand` / `FanDirectionStatus` | ⇄ | 63 | 1.001 (0 = forward/summer, 1 = reverse/winter) |
-| `FanTimerCommand` / `FanTimerStatus` | ⇄ | 64 | **7.006** minutes (0–540) |
-| `LightPowerCommand` / `LightPowerStatus` | ⇄ | 20 | 1.001 switch |
-| `LightCctCommand` / `LightCctStatus` | ⇄ | 23 | **5.001** % → 3 discrete steps |
+| `FanDirection` / `FanDirectionStatus` | ⇄ | 63 | 1.001 (0 = forward/summer, 1 = reverse/winter) |
+| `FanTimer` / `FanTimerStatus` | ⇄ | 64 | **7.006** minutes (0–540) |
+| `LightPower` / `LightPowerStatus` | ⇄ | 20 | 1.001 switch |
+| `LightCct` / `LightCctStatus` | ⇄ | 23 | **5.001** % → 3 discrete steps |
 | `LightCctStep` | KNX → device | 23 | **3.007** dim step (relative long-press cycle) |
 | `AvailabilityStatus` | device → KNX | — (connectivity-driven, no DP) | 1.001 switch |
 
@@ -189,9 +189,9 @@ Notes:
   3-step colour temperature.
 - **CCT can also be cycled by a long-press.** `LightCctStep` is an optional relative 3.007 command
   (same DP 23) for a KNX pushbutton: a long-press cycles cool → warm-white → warm → cool …, wrapping at
-  the rails. It coexists with the absolute `LightCctCommand`; both are optional and independent, and the
+  the rails. It coexists with the absolute `LightCct`; both are optional and independent, and the
   resulting step is reported on the shared `LightCctStatus`.
-- **Light CCT is flicker-prone.** Leave `LightCctCommand`/`LightCctStatus` empty to skip it; the light then
+- **Light CCT is flicker-prone.** Leave `LightCct`/`LightCctStatus` empty to skip it; the light then
   behaves as on/off-only.
 - See [`docs/use-cases/wind-calm/README.md`](docs/use-cases/wind-calm/README.md) for the full datapoint
   reference and firmware quirks (integer-only fan speed, MCU-owned timer, RF-remote state drift).
@@ -229,7 +229,7 @@ dotnet run --project TuyaHub
 **Verify:**
 
 1. Dashboard (`http://<host>:8080/`) shows the device **online**.
-2. Send to a command GA (e.g. `FanPowerCommand`) from ETS / a KNX switch and confirm the fan reacts and the
+2. Send to a command GA (e.g. `FanPower`) from ETS / a KNX switch and confirm the fan reacts and the
    matching status GA + dashboard update.
 3. Change the device with its physical RF remote and confirm the status GA updates within
    `PollIntervalSeconds`.

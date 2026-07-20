@@ -24,12 +24,12 @@ public class KnxBridgeCommandMappingTests
     {
         var mapping = new DeviceMapping
         {
-            ["FanPowerCommand"] = "1/1/1",
+            ["FanPower"] = "1/1/1",
             ["FanSpeedStep"] = "1/1/3",
-            ["FanDirectionCommand"] = "1/1/5",
-            ["FanTimerCommand"] = "1/1/7",
-            ["LightPowerCommand"] = "1/1/9",
-            ["LightCctCommand"] = "1/1/13",
+            ["FanDirection"] = "1/1/5",
+            ["FanTimer"] = "1/1/7",
+            ["LightPower"] = "1/1/9",
+            ["LightCct"] = "1/1/13",
         };
         var bindings = BuildBindings(mapping);
 
@@ -47,9 +47,9 @@ public class KnxBridgeCommandMappingTests
     {
         var bindings = BuildBindings(new DeviceMapping
         {
-            ["FanPowerCommand"] = "1/1/1",
+            ["FanPower"] = "1/1/1",
             ["FanSpeedStep"] = "",           // disabled
-            ["FanDirectionCommand"] = "   ", // whitespace also disables
+            ["FanDirection"] = "   ", // whitespace also disables
         });
 
         Assert.True(bindings.ContainsKey(GroupAddress.Parse("1/1/1")));
@@ -59,7 +59,7 @@ public class KnxBridgeCommandMappingTests
     [Fact]
     public void Cct_command_is_mapped()
     {
-        var mapping = new DeviceMapping { ["LightCctCommand"] = "1/1/13" };
+        var mapping = new DeviceMapping { ["LightCct"] = "1/1/13" };
 
         Assert.Equal(WindCalmCapabilities.LightCct, CapabilityAt(GroupAddress.Parse("1/1/13"), mapping));
     }
