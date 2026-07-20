@@ -150,13 +150,7 @@ internal sealed class KnxBridge : IAsyncDisposable
             // Tear down a stale/broken bus before opening a fresh one — never hold two sockets.
             await DisposeBusAsync();
 
-            var bus = new KnxBus(new IpTunnelingConnectorParameters(_options.Host, _options.Port));
-            bus.GroupMessageReceived += OnGroupMessageReceived;
-
-            _logger.LogInformation("Connecting to KNX interface {Host}:{Port}.", _options.Host, _options.Port);
-            await bus.ConnectAsync(cancellationToken);
-            await bus.SetInterfaceConfigurationAsync(
-                new BusInterfaceConfiguration(IndividualAddress.Parse(_options.IndividualAddress)), cancellationToken);
+            var bus = await ConnectBusAsync(cancellationToken);
 
             // Fresh drop signal for this connection, then start watching for drops.
             _dropSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -168,6 +162,64 @@ internal sealed class KnxBridge : IAsyncDisposable
         {
             _connectGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Opens a fresh tunnelling connection with the inbound subscription attached. When
+    /// <see cref="KnxOptions.IndividualAddress"/> is set we request it as the <b>tunnel source address</b>
+    /// (tunneling v2) via the connector parameters — the correct way to give the hub its own individual
+    /// address. We deliberately no longer call <c>SetInterfaceConfigurationAsync</c>, which reprogrammed
+    /// the interface's <i>own</i> physical address: on a clash with a real device that makes the gateway
+    /// reject our <b>outbound</b> telegrams (status writes <i>and</i> read responses), leaving inbound
+    /// commands working while feedback and read-answers silently fail. If the gateway is tunneling-v1 only
+    /// (requesting an address then fails), we retry letting the gateway assign one, so v1 interfaces keep
+    /// working.
+    /// </summary>
+    private async Task<KnxBus> ConnectBusAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Connecting to KNX interface {Host}:{Port}.", _options.Host, _options.Port);
+
+        if (string.IsNullOrWhiteSpace(_options.IndividualAddress) is false)
+        {
+            try
+            {
+                return await OpenBusAsync(_options.IndividualAddress, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex,
+                    "KNX connect requesting individual address {Address} failed (gateway may be tunneling-v1 only); retrying with a gateway-assigned address.",
+                    _options.IndividualAddress);
+            }
+        }
+
+        return await OpenBusAsync(individualAddress: null, cancellationToken);
+    }
+
+    private async Task<KnxBus> OpenBusAsync(string? individualAddress, CancellationToken cancellationToken)
+    {
+        var parameters = new IpTunnelingConnectorParameters(_options.Host, _options.Port);
+        if (individualAddress is not null)
+        {
+            // Tunneling-v2 slot address; fall back to any free address if this one is already in use.
+            parameters.IndividualAddress = IndividualAddress.Parse(individualAddress);
+            parameters.FallbackToAnyIndividualAddress = true;
+        }
+
+        var bus = new KnxBus(parameters);
+        bus.GroupMessageReceived += OnGroupMessageReceived;
+        try
+        {
+            await bus.ConnectAsync(cancellationToken);
+        }
+        catch
+        {
+            bus.GroupMessageReceived -= OnGroupMessageReceived;
+            await bus.DisposeAsync();
+            throw;
+        }
+
+        return bus;
     }
 
     private void OnConnectionStateChanged(object? sender, EventArgs e)
@@ -205,6 +257,10 @@ internal sealed class KnxBridge : IAsyncDisposable
     {
         try
         {
+            // Inbound group telegrams are rare, so log every one at Information — this is the primary
+            // diagnostic for "reads never answered": it shows whether a ValueRead even reaches the hub.
+            _logger.LogInformation("KNX inbound {EventType} on {Address}.", e.EventType, e.DestinationAddress);
+
             switch (e.EventType)
             {
                 case GroupEventType.ValueRead:
@@ -226,19 +282,32 @@ internal sealed class KnxBridge : IAsyncDisposable
         KnxStatusValue? status;
         lock (_valuesLock)
         {
-            if (_byAddress.TryGetValue(e.DestinationAddress, out status) is false || status.Value is null)
+            if (_byAddress.TryGetValue(e.DestinationAddress, out status) is false)
             {
+                _logger.LogInformation(
+                    "KNX read for {Address} ignored — not a mapped status group address.", e.DestinationAddress);
+                return;
+            }
+
+            if (status.Value is null)
+            {
+                _logger.LogInformation(
+                    "KNX read for {Address} unanswered — no cached value yet (device has not reported this capability).",
+                    e.DestinationAddress);
                 return;
             }
         }
 
-        if (_bus is null)
+        // Capture the bus under no lock — a concurrent reconnect may null the field between here and use.
+        var bus = _bus;
+        if (bus is null)
         {
+            _logger.LogWarning("KNX read for {Address} unanswered — bus not connected.", e.DestinationAddress);
             return;
         }
 
-        await _bus.RespondGroupValueAsync(status.Address, new GroupValue(status.Value), MessagePriority.Low, CancellationToken.None);
-        _logger.LogDebug("KNX read answered {Status}", status);
+        await bus.RespondGroupValueAsync(status.Address, new GroupValue(status.Value), MessagePriority.Low, CancellationToken.None);
+        _logger.LogInformation("KNX read answered {Status}", status);
     }
 
     private async Task DispatchCommandAsync(GroupEventArgs e)

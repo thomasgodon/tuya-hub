@@ -71,6 +71,24 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   `Steps {0,500,1000}` that **wraps** at the rails (unlike fan speed, which clamps). Shipped GA `1/1/16`.
   Table-driven: no `KnxCommandTranslator`/`KnxBridge` changes. See UC-07 (07c).
 
+- **Post-MVP — KNX read-response hardened (individual-address fix).** `GroupValueRead` on a status GA
+  was already answered from the cached value (`KnxBridge.AnswerReadAsync`, FR-7/UC-08b), but two issues
+  could silence outbound telegrams. `EnsureConnectedAsync` used to call `SetInterfaceConfigurationAsync`
+  after connect, which **reprograms the tunnelling interface's own physical address** to
+  `KnxOptions.IndividualAddress`; a clash with a real device makes the gateway reject the hub's
+  *outbound* telegrams — killing both status writes **and** read responses while inbound commands keep
+  working. That call is removed; the configured address is now requested as the **tunnel source address**
+  via `IpTunnelingConnectorParameters.IndividualAddress` (tunnelling v2, `FallbackToAnyIndividualAddress
+  = true`) *before* `ConnectAsync`, with a retry that lets the gateway assign an address if the interface
+  is v1-only (so v1 gateways keep working). `IndividualAddress` is now optional (empty = gateway-assigned).
+  Also: every inbound group telegram and each read-answer outcome (answered / no-cached-value / unmapped
+  GA / bus-down) is logged at **Information** so "reads not answered" is diagnosable from `docker logs`,
+  and `AnswerReadAsync` captures `_bus` into a local to avoid a reconnect race. The cache-null window is
+  only *before the first device report* (`PublishAsync` caches the value even while the bus is down, and
+  `Device.ApplyReportedState` full-syncs every reported capability on the first report), so no
+  connect-time re-publish was added — priming an un-reported capability from its default would publish a
+  fabricated value.
+
 The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
 declared architecture and milestones rather than inventing your own.
 
