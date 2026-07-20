@@ -56,6 +56,15 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   `1/1/11`/`1/1/12`), and a 🔔/🔕 chip on the dashboard fan card (`FanDto.Beep`). The KNX ACL and Tuya
   codec needed no changes (table-driven). See UC-10.
 
+- **Post-MVP — CCT step/cycle (long-press) added.** A KNX pushbutton can now *cycle* CCT via a relative
+  **DPT 3.007** command, coexisting with the existing absolute-% `LightCctCommand` (5.001). Added a
+  command-only `WindCalmCapabilities.LightCctStep` key + a *second* `WindCalmProfile` `CapabilityBinding`
+  (no dps/status of its own — `CommandMappingKey = "LightCctStep"`, decodes via `KnxDpt.DecodeDimStep`,
+  reuses DP 23's encoding/status), `StepLightCctCommand`/handler mirroring `StepFanSpeed`, and
+  `Device.CycleLightColourTemperature(up)` + `ColourTemperature.Cycle(up)` — index navigation over
+  `Steps {0,500,1000}` that **wraps** at the rails (unlike fan speed, which clamps). Shipped GA `1/1/16`.
+  Table-driven: no `KnxCommandTranslator`/`KnxBridge` changes. See UC-07 (07c).
+
 The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
 declared architecture and milestones rather than inventing your own.
 

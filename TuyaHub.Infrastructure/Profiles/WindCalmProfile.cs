@@ -117,6 +117,16 @@ internal static class WindCalmProfile
             },
             new CapabilityBinding
             {
+                // Command-only: a KNX long-press cycles CCT via DPT 3.007 (UC-07). No dps/status of its
+                // own — it emits a StepLightCctCommand whose resulting DeviceCommand rides the LightCct
+                // capability's DP 23 encoding and status GA above.
+                Key = WindCalmCapabilities.LightCctStep,
+                CommandMappingKey = "LightCctStep",
+                BuildCommand = (device, payload) =>
+                    KnxDpt.DecodeDimStep(payload) is { } up ? new StepLightCctCommand(device, up) : null,
+            },
+            new CapabilityBinding
+            {
                 // Availability has no Tuya dps and no command — it is driven by connectivity transitions.
                 Key = WellKnownCapabilities.Availability,
                 StatusMappingKey = "AvailabilityStatus",

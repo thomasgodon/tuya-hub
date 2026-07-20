@@ -150,6 +150,23 @@ public sealed class Device : IDevice
         }
     }
 
+    /// <summary>
+    /// Relative colour-temperature step from a KNX dim telegram (UC-07) — a long-press cycles
+    /// 0 → 500 → 1000 → 0 …, wrapping at the rails. Independent of light power (DP 20). With three
+    /// distinct steps the target always differs from the current step, but the flicker guard is kept
+    /// for symmetry with <see cref="SetLightColourTemperature"/>.
+    /// </summary>
+    public DeviceCommand CycleLightColourTemperature(bool up)
+    {
+        lock (_gate)
+        {
+            var target = Light.ColourTemperature.Cycle(up);
+            return _hasReported && Light.ColourTemperature == target
+                ? DeviceCommand.Empty
+                : new DeviceCommand { LightCct = target };
+        }
+    }
+
     // ---- Feedback path (authoritative: mutate state, emit change events) ----
 
     /// <summary>

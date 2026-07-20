@@ -65,6 +65,14 @@ public class KnxBridgeCommandMappingTests
     }
 
     [Fact]
+    public void Cct_step_command_is_mapped()
+    {
+        var mapping = new DeviceMapping { ["LightCctStep"] = "1/1/16" };
+
+        Assert.Equal(WindCalmCapabilities.LightCctStep, CapabilityAt(GroupAddress.Parse("1/1/16"), mapping));
+    }
+
+    [Fact]
     public void Status_gas_are_not_treated_as_command_gas()
     {
         var bindings = BuildBindings(new DeviceMapping

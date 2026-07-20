@@ -10,7 +10,7 @@ namespace TuyaHub.Tests.Knx;
 
 /// <summary>
 /// Golden characterization of the Wind Calm KNX wiring: mirrors the shipped
-/// <c>TuyaHub/appsettings.json</c> <c>DeviceMappings</c> (1/1/1 … 1/1/15) and asserts the profile-driven
+/// <c>TuyaHub/appsettings.json</c> <c>DeviceMappings</c> (1/1/1 … 1/1/16) and asserts the profile-driven
 /// store and command bindings resolve exactly the historical group-address layout. Guards the refactor
 /// against any drift in the wind-calm status/command mapping.
 /// </summary>
@@ -37,6 +37,7 @@ public class WindCalmWiringGoldenTests
             ["LightPowerStatus"] = "1/1/10",
             ["LightCctCommand"] = "1/1/13",
             ["LightCctStatus"] = "1/1/14",
+            ["LightCctStep"] = "1/1/16",
             ["AvailabilityStatus"] = "1/1/15",
         },
     };
@@ -63,7 +64,7 @@ public class WindCalmWiringGoldenTests
         var bindings = KnxBridge.BuildCommandBindings(ShippedMappings(), _ => WindCalmProfile.Create());
         CapabilityKey KeyAt(string ga) => bindings[GroupAddress.Parse(ga)].Capability.Key;
 
-        Assert.Equal(7, bindings.Count);
+        Assert.Equal(8, bindings.Count);
         Assert.Equal(WindCalmCapabilities.FanPower, KeyAt("1/1/1"));
         Assert.Equal(WindCalmCapabilities.FanSpeed, KeyAt("1/1/3"));
         Assert.Equal(WindCalmCapabilities.FanDirection, KeyAt("1/1/5"));
@@ -71,5 +72,6 @@ public class WindCalmWiringGoldenTests
         Assert.Equal(WindCalmCapabilities.FanBeep, KeyAt("1/1/11"));
         Assert.Equal(WindCalmCapabilities.LightPower, KeyAt("1/1/9"));
         Assert.Equal(WindCalmCapabilities.LightCct, KeyAt("1/1/13"));
+        Assert.Equal(WindCalmCapabilities.LightCctStep, KeyAt("1/1/16"));
     }
 }

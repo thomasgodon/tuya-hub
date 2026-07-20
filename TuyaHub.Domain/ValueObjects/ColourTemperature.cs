@@ -29,6 +29,24 @@ public readonly record struct ColourTemperature
     /// <summary>Scales the device value back to a KNX percentage (0..100).</summary>
     public int ToPercent() => (int)Math.Round(Dp / 1000.0 * 100, MidpointRounding.AwayFromZero);
 
+    /// <summary>
+    /// Moves to the adjacent supported step, wrapping around at the rails (a KNX long-press cycle,
+    /// UC-07). Step up from the warmest step (1000) wraps to the coolest (0); step down from 0 wraps
+    /// to 1000. Navigates by index into <see cref="Steps"/> — the steps are non-contiguous, so this
+    /// is not <c>Dp ± 1</c>.
+    /// </summary>
+    public ColourTemperature Cycle(bool up)
+    {
+        var index = Array.IndexOf(Steps, Dp);
+        if (index < 0)
+        {
+            index = 0; // Current value isn't a canonical step (shouldn't happen): start from the coolest.
+        }
+
+        var next = (index + (up ? 1 : -1) + Steps.Length) % Steps.Length;
+        return new ColourTemperature(Steps[next]);
+    }
+
     private static int Snap(int dp)
     {
         var nearest = Steps[0];

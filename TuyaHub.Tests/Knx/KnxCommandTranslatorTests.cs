@@ -86,4 +86,22 @@ public class KnxCommandTranslatorTests
         var command = Assert.IsType<SetLightCctCommand>(Translate(WindCalmCapabilities.LightCct, 0xFF));
         Assert.Equal(100, command.Percent);
     }
+
+    [Theory]
+    [InlineData(0x09, true)]    // up
+    [InlineData(0x01, false)]   // down
+    public void LightCctStep_maps_to_step_light_cct(byte payload, bool expectedUp)
+    {
+        var command = Assert.IsType<StepLightCctCommand>(Translate(WindCalmCapabilities.LightCctStep, payload));
+        Assert.Equal(Fan, command.Device);
+        Assert.Equal(expectedUp, command.Up);
+    }
+
+    [Theory]
+    [InlineData(0x00)]   // down break
+    [InlineData(0x08)]   // up break
+    public void LightCctStep_break_produces_no_command(byte payload)
+    {
+        Assert.Null(Translate(WindCalmCapabilities.LightCctStep, payload));
+    }
 }

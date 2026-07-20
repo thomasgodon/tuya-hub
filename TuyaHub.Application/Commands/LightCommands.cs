@@ -10,6 +10,9 @@ public sealed record SetLightPowerCommand(DeviceName Device, bool On) : IDeviceC
 /// <summary>Colour temperature as a KNX percentage (0..100), snapped to the nearest step.</summary>
 public sealed record SetLightCctCommand(DeviceName Device, int Percent) : IDeviceCommand;
 
+/// <summary>Relative colour-temperature step (KNX long-press cycle, DPT 3.007). Wraps at the rails.</summary>
+public sealed record StepLightCctCommand(DeviceName Device, bool Up) : IDeviceCommand;
+
 public sealed class SetLightPowerHandler(
     IDeviceRegistry registry, IDeviceGateway gateway, ILogger<SetLightPowerHandler> logger)
     : DeviceCommandHandler<SetLightPowerCommand>(registry, gateway, logger)
@@ -24,4 +27,12 @@ public sealed class SetLightCctHandler(
 {
     protected override DeviceCommand Apply(Device device, SetLightCctCommand request)
         => device.SetLightColourTemperature(ColourTemperature.FromPercent(request.Percent));
+}
+
+public sealed class StepLightCctHandler(
+    IDeviceRegistry registry, IDeviceGateway gateway, ILogger<StepLightCctHandler> logger)
+    : DeviceCommandHandler<StepLightCctCommand>(registry, gateway, logger)
+{
+    protected override DeviceCommand Apply(Device device, StepLightCctCommand request)
+        => device.CycleLightColourTemperature(request.Up);
 }
