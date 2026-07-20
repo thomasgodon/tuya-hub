@@ -13,6 +13,8 @@ public sealed record SetFanDirectionCommand(DeviceName Device, FanDirection Dire
 
 public sealed record SetFanTimerCommand(DeviceName Device, int Minutes) : IDeviceCommand;
 
+public sealed record SetFanBeepCommand(DeviceName Device, bool On) : IDeviceCommand;
+
 public sealed class SetFanPowerHandler(
     IDeviceRegistry registry, IDeviceGateway gateway, ILogger<SetFanPowerHandler> logger)
     : DeviceCommandHandler<SetFanPowerCommand>(registry, gateway, logger)
@@ -43,4 +45,12 @@ public sealed class SetFanTimerHandler(
 {
     protected override DeviceCommand Apply(Device device, SetFanTimerCommand request)
         => device.SetFanTimer(CountdownTimer.FromMinutes(request.Minutes));
+}
+
+public sealed class SetFanBeepHandler(
+    IDeviceRegistry registry, IDeviceGateway gateway, ILogger<SetFanBeepHandler> logger)
+    : DeviceCommandHandler<SetFanBeepCommand>(registry, gateway, logger)
+{
+    protected override DeviceCommand Apply(Device device, SetFanBeepCommand request)
+        => device.SetFanBeep(request.On);
 }

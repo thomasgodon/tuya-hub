@@ -21,6 +21,7 @@ internal static class WindCalmProfile
     private const int DpFanSpeed = 62;
     private const int DpFanDirection = 63;
     private const int DpFanTimer = 64;
+    private const int DpFanBeep = 66;
     private const int DpLightPower = 20;
     private const int DpLightCct = 23;
 
@@ -80,6 +81,17 @@ internal static class WindCalmProfile
                 EncodeStatus = v => KnxDpt.Minutes(v.AsInt()),
                 CommandMappingKey = "FanTimerCommand",
                 BuildCommand = (device, payload) => new SetFanTimerCommand(device, KnxDpt.DecodeMinutes(payload)),
+            },
+            new CapabilityBinding
+            {
+                Key = WindCalmCapabilities.FanBeep,
+                Dp = DpFanBeep,
+                EncodeDp = v => (bool)v,
+                DecodeDp = raw => Convert.ToBoolean(raw),
+                StatusMappingKey = "FanBeepStatus",
+                EncodeStatus = v => KnxDpt.Bool(v.AsBool()),
+                CommandMappingKey = "FanBeepCommand",
+                BuildCommand = (device, payload) => new SetFanBeepCommand(device, KnxDpt.DecodeBool(payload)),
             },
             new CapabilityBinding
             {

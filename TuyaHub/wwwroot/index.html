@@ -125,6 +125,8 @@
     .meta-row .cct { display: inline-flex; align-items: center; gap: 6px; }
     .meta-row .swatch { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(255,255,255,.15); }
     .meta-row .timer { color: var(--air); font-variant-numeric: tabular-nums; }
+    .meta-row .beep { color: var(--air); }
+    .meta-row .beep.muted { color: var(--text-faint); }
 
     /* ---- discovered (unconfigured) devices ---- */
     .section-head { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; }
@@ -217,6 +219,7 @@
 
       const direction = f.direction === "Reverse" ? "↥ Winter" : "↧ Summer";
       const timer = f.timerRunning ? `<span class="timer">⏲ ${f.timerMinutes} min</span>` : "";
+      const beep = f.beep ? `<span class="beep">🔔 Beep</span>` : `<span class="beep muted">🔕 Muted</span>`;
 
       const cct = CCT[l.cctStep] || CCT[0];
 
@@ -234,7 +237,7 @@
               <span class="state ${f.power ? "on" : "off"}">${f.power ? "On" : "Off"}</span>
             </div>
             <div class="segments">${segments}</div>
-            <div class="meta-row"><span>${direction}</span>${timer}</div>
+            <div class="meta-row"><span>${direction}</span>${beep}${timer}</div>
           </section>
           <section class="seg seg-light">
             <div class="seg-title"><span class="bar"></span>Light</div>

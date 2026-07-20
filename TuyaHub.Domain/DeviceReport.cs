@@ -36,6 +36,7 @@ public sealed record DeviceReport
     public SpeedLevel? FanSpeed { get => Get<SpeedLevel>(WindCalmCapabilities.FanSpeed); init => Set(WindCalmCapabilities.FanSpeed, value); }
     public FanDirection? FanDirection { get => Get<FanDirection>(WindCalmCapabilities.FanDirection); init => Set(WindCalmCapabilities.FanDirection, value); }
     public CountdownTimer? FanTimer { get => Get<CountdownTimer>(WindCalmCapabilities.FanTimer); init => Set(WindCalmCapabilities.FanTimer, value); }
+    public bool? FanBeep { get => Get<bool>(WindCalmCapabilities.FanBeep); init => Set(WindCalmCapabilities.FanBeep, value); }
     public bool? LightPower { get => Get<bool>(WindCalmCapabilities.LightPower); init => Set(WindCalmCapabilities.LightPower, value); }
     public ColourTemperature? LightCct { get => Get<ColourTemperature>(WindCalmCapabilities.LightCct); init => Set(WindCalmCapabilities.LightCct, value); }
 

@@ -28,6 +28,7 @@ public class DeviceCapabilityEventTests
             FanSpeed = SpeedLevel.Create(3),
             FanDirection = FanDirection.Reverse,
             FanTimer = CountdownTimer.FromMinutes(60),
+            FanBeep = true,
             LightPower = true,
             LightCct = ColourTemperature.FromDp(1000),
         }));
@@ -36,6 +37,7 @@ public class DeviceCapabilityEventTests
         Assert.Equal(3, changes[WindCalmCapabilities.FanSpeed].AsInt());
         Assert.Equal(1, changes[WindCalmCapabilities.FanDirection].AsInt());
         Assert.Equal(60, changes[WindCalmCapabilities.FanTimer].AsInt());
+        Assert.True(changes[WindCalmCapabilities.FanBeep].AsBool());
         Assert.True(changes[WindCalmCapabilities.LightPower].AsBool());
         Assert.Equal(100, changes[WindCalmCapabilities.LightCct].AsInt());        // 1000/1000 → 100%
     }

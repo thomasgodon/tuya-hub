@@ -60,6 +60,9 @@ public sealed class FanDto
 
     public int TimerMinutes { get; init; }
     public bool TimerRunning { get; init; }
+
+    /// <summary>Confirmation-beep enable (DP 66).</summary>
+    public bool Beep { get; init; }
 }
 
 /// <summary>

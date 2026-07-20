@@ -44,6 +44,7 @@ public class DeviceProfileRegistryTests
         Assert.Equal(62, dpByKey[WindCalmCapabilities.FanSpeed]);
         Assert.Equal(63, dpByKey[WindCalmCapabilities.FanDirection]);
         Assert.Equal(64, dpByKey[WindCalmCapabilities.FanTimer]);
+        Assert.Equal(66, dpByKey[WindCalmCapabilities.FanBeep]);
         Assert.Equal(20, dpByKey[WindCalmCapabilities.LightPower]);
         Assert.Equal(23, dpByKey[WindCalmCapabilities.LightCct]);
         Assert.Null(dpByKey[WellKnownCapabilities.Availability]);

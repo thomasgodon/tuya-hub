@@ -31,6 +31,8 @@ public class WindCalmWiringGoldenTests
             ["FanDirectionStatus"] = "1/1/6",
             ["FanTimerCommand"] = "1/1/7",
             ["FanTimerStatus"] = "1/1/8",
+            ["FanBeepCommand"] = "1/1/11",
+            ["FanBeepStatus"] = "1/1/12",
             ["LightPowerCommand"] = "1/1/9",
             ["LightPowerStatus"] = "1/1/10",
             ["LightCctCommand"] = "1/1/13",
@@ -44,11 +46,12 @@ public class WindCalmWiringGoldenTests
     {
         var store = KnxBridge.BuildStore(ShippedMappings(), _ => WindCalmProfile.Create());
 
-        Assert.Equal(7, store.Count);
+        Assert.Equal(8, store.Count);
         Assert.Equal(GroupAddress.Parse("1/1/2"), store[(Fan, WindCalmCapabilities.FanPower)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/4"), store[(Fan, WindCalmCapabilities.FanSpeed)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/6"), store[(Fan, WindCalmCapabilities.FanDirection)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/8"), store[(Fan, WindCalmCapabilities.FanTimer)].Address);
+        Assert.Equal(GroupAddress.Parse("1/1/12"), store[(Fan, WindCalmCapabilities.FanBeep)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/10"), store[(Fan, WindCalmCapabilities.LightPower)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/14"), store[(Fan, WindCalmCapabilities.LightCct)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/15"), store[(Fan, WellKnownCapabilities.Availability)].Address);
@@ -60,11 +63,12 @@ public class WindCalmWiringGoldenTests
         var bindings = KnxBridge.BuildCommandBindings(ShippedMappings(), _ => WindCalmProfile.Create());
         CapabilityKey KeyAt(string ga) => bindings[GroupAddress.Parse(ga)].Capability.Key;
 
-        Assert.Equal(6, bindings.Count);
+        Assert.Equal(7, bindings.Count);
         Assert.Equal(WindCalmCapabilities.FanPower, KeyAt("1/1/1"));
         Assert.Equal(WindCalmCapabilities.FanSpeed, KeyAt("1/1/3"));
         Assert.Equal(WindCalmCapabilities.FanDirection, KeyAt("1/1/5"));
         Assert.Equal(WindCalmCapabilities.FanTimer, KeyAt("1/1/7"));
+        Assert.Equal(WindCalmCapabilities.FanBeep, KeyAt("1/1/11"));
         Assert.Equal(WindCalmCapabilities.LightPower, KeyAt("1/1/9"));
         Assert.Equal(WindCalmCapabilities.LightCct, KeyAt("1/1/13"));
     }

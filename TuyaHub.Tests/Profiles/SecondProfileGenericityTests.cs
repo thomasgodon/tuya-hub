@@ -98,7 +98,7 @@ public class SecondProfileGenericityTests
     public void Dashboard_projects_sections_for_the_new_profile()
     {
         var state = new DeviceStateSnapshot(
-            Plug, IsOnline: true, false, 0, FanDirection.Forward, 0, false, false, 0, 0)
+            Plug, IsOnline: true, false, 0, FanDirection.Forward, 0, false, false, false, 0, 0)
         {
             Capabilities = new Dictionary<CapabilityKey, CapabilityValue>
             {

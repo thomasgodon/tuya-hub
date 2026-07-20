@@ -25,6 +25,7 @@ public class TuyaProfileCodecTests
             FanSpeed = SpeedLevel.Create(3),
             FanDirection = FanDirection.Reverse,
             FanTimer = CountdownTimer.FromMinutes(30),
+            FanBeep = true,
             LightPower = false,
             LightCct = ColourTemperature.FromDp(1000),
         };
@@ -35,6 +36,7 @@ public class TuyaProfileCodecTests
         Assert.Equal(3, dps["62"]);
         Assert.Equal("reverse", dps["63"]);
         Assert.Equal(30, dps["64"]);
+        Assert.Equal(true, dps["66"]);
         Assert.Equal(false, dps["20"]);
         Assert.Equal(1000, dps["23"]);
     }
@@ -68,6 +70,7 @@ public class TuyaProfileCodecTests
             [62] = 4,
             [63] = "reverse",
             [64] = 30,
+            [66] = true,
             [20] = true,
             [23] = 1000,
         };
@@ -78,6 +81,7 @@ public class TuyaProfileCodecTests
         Assert.Equal(SpeedLevel.Create(4), report.FanSpeed);
         Assert.Equal(FanDirection.Reverse, report.FanDirection);
         Assert.Equal(CountdownTimer.FromMinutes(30), report.FanTimer);
+        Assert.Equal(true, report.FanBeep);
         Assert.Equal(true, report.LightPower);
         Assert.Equal(ColourTemperature.FromDp(1000), report.LightCct);
     }

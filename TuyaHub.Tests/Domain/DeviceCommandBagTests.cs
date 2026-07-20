@@ -56,6 +56,7 @@ public class DeviceCommandBagTests
             FanSpeed = SpeedLevel.Create(4),
             FanDirection = FanDirection.Reverse,
             FanTimer = CountdownTimer.FromMinutes(30),
+            FanBeep = true,
             LightPower = true,
             LightCct = ColourTemperature.FromDp(1000),
         };
@@ -64,9 +65,10 @@ public class DeviceCommandBagTests
         Assert.Equal(SpeedLevel.Create(4), report.FanSpeed);
         Assert.Equal(FanDirection.Reverse, report.FanDirection);
         Assert.Equal(CountdownTimer.FromMinutes(30), report.FanTimer);
+        Assert.Equal(true, report.FanBeep);
         Assert.Equal(true, report.LightPower);
         Assert.Equal(ColourTemperature.FromDp(1000), report.LightCct);
-        Assert.Equal(6, report.Values.Count);
+        Assert.Equal(7, report.Values.Count);
     }
 
     [Fact]

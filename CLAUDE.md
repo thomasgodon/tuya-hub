@@ -48,6 +48,14 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   the `LightBrightness*` config keys are all gone. The light is **on/off (DP 20) + CCT (DP 23) only**.
   (UC-06 is kept as a doc, banner-marked *removed*.)
 
+- **Post-MVP — Fan beep added.** DP 66 (`fan_beep`, bool) was wired end-to-end as the `FanBeep`
+  capability, mirroring `FanPower`: a `WindCalmCapabilities.FanBeep` key, `FanEndpoint.Beep`, the
+  `DeviceCommand`/`DeviceReport` facade accessors + snapshot field, `Device.SetFanBeep` + its
+  `ApplyReportedState` readback branch, the `SetFanBeepCommand`/handler, the `WindCalmProfile`
+  `CapabilityBinding` (DPT 1.001 command + status, `FanBeepCommand`/`FanBeepStatus` keys — shipped GAs
+  `1/1/11`/`1/1/12`), and a 🔔/🔕 chip on the dashboard fan card (`FanDto.Beep`). The KNX ACL and Tuya
+  codec needed no changes (table-driven). See UC-10.
+
 The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
 declared architecture and milestones rather than inventing your own.
 

@@ -55,6 +55,7 @@ public sealed class Device : IDevice
                 Fan.Direction,
                 Fan.Timer.Minutes,
                 Fan.Timer.IsRunning,
+                Fan.Beep,
                 Light.Power,
                 Light.ColourTemperature.Dp,
                 Light.ColourTemperature.ToPercent());
@@ -111,6 +112,15 @@ public sealed class Device : IDevice
         lock (_gate)
         {
             return new DeviceCommand { FanTimer = timer };
+        }
+    }
+
+    /// <summary>Fan confirmation-beep enable (DP 66). Takes effect independently of fan power (UC-10).</summary>
+    public DeviceCommand SetFanBeep(bool on)
+    {
+        lock (_gate)
+        {
+            return new DeviceCommand { FanBeep = on };
         }
     }
 
@@ -189,6 +199,12 @@ public sealed class Device : IDevice
             {
                 Fan.Timer = timer;
                 Raise(events, WindCalmCapabilities.FanTimer, CapabilityValue.Int(timer.Minutes));
+            }
+
+            if (report.FanBeep is { } beep && (full || Fan.Beep != beep))
+            {
+                Fan.Beep = beep;
+                Raise(events, WindCalmCapabilities.FanBeep, CapabilityValue.Bool(beep));
             }
 
             if (report.LightPower is { } lightPower && (full || Light.Power != lightPower))
