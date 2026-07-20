@@ -31,14 +31,22 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   `Device` connectivity transitions are unit-tested.
 
 - **M6** — Light CCT (`Infrastructure/Knx/`): DP 23 (`temp_value`, 3 steps 0/500/1000) wired to KNX on
-  both the status and command paths, reusing the `LightBrightness` capability shape (DPT **5.001 %**,
-  the shared `KnxDpt.Percent`/`DecodePercent`). Domain/Application/Tuya-ACL support already existed;
+  both the status and command paths, using the shared percent DPT (**5.001 %**,
+  `KnxDpt.Percent`/`DecodePercent`). Domain/Application/Tuya-ACL support already existed;
   M6 was purely the KNX-ACL wiring — added `Capability.LightCct` / `CommandCapability.LightCct`, the
   `StatusAddresses`/`CommandAddresses` yields, the `DeviceEventKnxHandler.Handle(LightCctChanged)` +
   its explicit DI registration, and the `KnxCommandTranslator` arm. Flicker mitigation (write DP 23
   only on an actual step change) lives in `Device.SetLightColourTemperature`; status is only ever
   published from authoritative device readback, so the resulting step (not the requested one) reaches
   KNX. Per-device disable via an empty GA still applies.
+
+- **Post-MVP — Light dimming removed.** The Wind Calm hardware does not honour a brightness write
+  (DP 22), so light **brightness/dimming was removed end-to-end**: the `LightBrightness` capability
+  binding + key, the `Brightness` value object, `Device.SetLightBrightness`, the
+  `SetLightBrightnessCommand`/handler, the `LightBrightness` command/report facade + snapshot fields,
+  the dashboard `BrightnessPercent`/`BrightnessDp` DTO fields + UI (`%` number and dimming bar), and
+  the `LightBrightness*` config keys are all gone. The light is **on/off (DP 20) + CCT (DP 23) only**.
+  (UC-06 is kept as a doc, banner-marked *removed*.)
 
 The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
 declared architecture and milestones rather than inventing your own.
@@ -95,9 +103,9 @@ that table, so **adding a device type is registering a profile — no shared ACL
 - **TuyaHub.Domain** — pure model, no framework/protocol deps.
   - **Aggregate root `Device`** (one Wind Calm unit; the consistency boundary) with entities
     **`FanEndpoint`** / **`LightEndpoint`**. **All invariants and state transitions live here**, not in
-    Application — the dim-step rules, speed clamp 1–6, brightness↔0–1000 scaling, CCT steps, MCU timer.
+    Application — the dim-step rules, speed clamp 1–6, CCT steps, MCU timer.
   - **Value objects**: `DeviceId`, `LocalKey`, `ProtocolVersion`, `GroupAddress`, `SpeedLevel`,
-    `Brightness`, `ColourTemperature`, `Direction`, `Timer` — self-validating, immutable.
+    `ColourTemperature`, `Direction`, `Timer` — self-validating, immutable.
   - **Domain events** (`DeviceStateChanged`, `FanSpeedChanged`, `DeviceWentOffline`, …) dispatched via
     MediatR. **Registry port** `IDeviceRegistry`.
 - **TuyaHub.Application** — thin application services / command handlers; orchestrate use cases,

@@ -1,7 +1,7 @@
 namespace TuyaHub.Domain.ValueObjects;
 
 /// <summary>
-/// Stable identifier for one capability of a device (e.g. <c>"FanPower"</c>, <c>"LightBrightness"</c>).
+/// Stable identifier for one capability of a device (e.g. <c>"FanPower"</c>, <c>"LightCct"</c>).
 /// The generic currency (<see cref="DeviceCommand"/> / <see cref="DeviceReport"/> bags and
 /// <see cref="TuyaHub.Domain.Events.DeviceCapabilityChanged"/>) keys on this rather than on a fixed
 /// enum, so a new device type declares its own capability keys without editing shared code. Wind Calm's

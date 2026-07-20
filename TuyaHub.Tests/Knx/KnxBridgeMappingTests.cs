@@ -24,14 +24,14 @@ public class KnxBridgeMappingTests
             ["FanPowerStatus"] = "1/1/2",
             ["FanSpeedStatus"] = "1/1/4",
             ["FanTimerStatus"] = "1/1/8",
-            ["LightBrightnessStatus"] = "1/1/12",
+            ["LightCctStatus"] = "1/1/14",
             ["AvailabilityStatus"] = "1/1/15",
         });
 
         Assert.Equal(GroupAddress.Parse("1/1/2"), store[(Fan, WindCalmCapabilities.FanPower)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/4"), store[(Fan, WindCalmCapabilities.FanSpeed)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/8"), store[(Fan, WindCalmCapabilities.FanTimer)].Address);
-        Assert.Equal(GroupAddress.Parse("1/1/12"), store[(Fan, WindCalmCapabilities.LightBrightness)].Address);
+        Assert.Equal(GroupAddress.Parse("1/1/14"), store[(Fan, WindCalmCapabilities.LightCct)].Address);
         Assert.Equal(GroupAddress.Parse("1/1/15"), store[(Fan, WellKnownCapabilities.Availability)].Address);
     }
 

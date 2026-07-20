@@ -75,7 +75,7 @@ device type would contribute its own capability table the same way. One physical
 | Fan | 63 | `fan_direction` | enum | `forward`/`reverse` | Direction (summer/winter) |
 | Fan | 64 | `countdown_left_fan` | int | 0–540 min | Auto-off timer (**counted down by device MCU**) |
 | Light | 20 | `switch_led` | bool | true/false | Light on/off |
-| Light | 22 | `bright_value` | int | 0–1000 | Brightness (scaled) |
+| Light | 22 | `bright_value` | int | 0–1000 | ~~Brightness (scaled)~~ — **removed post-MVP: hardware ignores DP 22 (no dimming)** |
 | Light | 23 | `temp_value` | int | 0/500/1000 | Colour temperature (**optional — firmware flicker bug**) |
 
 Protocol facts that constrain the design: TCP **6668**, single persistent socket, heartbeat every
@@ -94,7 +94,7 @@ Command (KNX→Tuya) and feedback (Tuya→KNX) use **separate group addresses** 
 | Fan direction | 63 | 1.001 (0 = forward/summer, 1 = reverse/winter) | 1.001 |
 | Fan timer | 64 | 7.006 minutes | 7.006 remaining |
 | Light power | 20 | 1.001 switch | 1.001 |
-| Light brightness | 22 | 5.001 % | 5.001 % |
+| ~~Light brightness~~ | ~~22~~ | — | — *(removed post-MVP — hardware has no dimming)* |
 | Light CCT | 23 | 5.001 % → 3 steps | 5.001 % |
 
 **Speed is relative:** the bridge receives 4-bit dim telegrams (DPT 3.007) and walks the level

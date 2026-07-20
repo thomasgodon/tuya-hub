@@ -8,7 +8,7 @@ namespace TuyaHub.Tests.Domain;
 /// <summary>
 /// The collapsed feedback event: <see cref="Device.ApplyReportedState"/> emits one
 /// <see cref="DeviceCapabilityChanged"/> per changed capability, carrying the KNX-facing scalar the
-/// former typed events carried (speed status 0..6, direction 0/1, brightness/CCT %, minutes).
+/// former typed events carried (speed status 0..6, direction 0/1, CCT %, minutes).
 /// </summary>
 public class DeviceCapabilityEventTests
 {
@@ -29,7 +29,6 @@ public class DeviceCapabilityEventTests
             FanDirection = FanDirection.Reverse,
             FanTimer = CountdownTimer.FromMinutes(60),
             LightPower = true,
-            LightBrightness = Brightness.FromDp(500),
             LightCct = ColourTemperature.FromDp(1000),
         }));
 
@@ -38,7 +37,6 @@ public class DeviceCapabilityEventTests
         Assert.Equal(1, changes[WindCalmCapabilities.FanDirection].AsInt());
         Assert.Equal(60, changes[WindCalmCapabilities.FanTimer].AsInt());
         Assert.True(changes[WindCalmCapabilities.LightPower].AsBool());
-        Assert.Equal(50, changes[WindCalmCapabilities.LightBrightness].AsInt());  // 500/1000 → 50%
         Assert.Equal(100, changes[WindCalmCapabilities.LightCct].AsInt());        // 1000/1000 → 100%
     }
 
@@ -61,7 +59,7 @@ public class DeviceCapabilityEventTests
     public void An_unchanged_second_report_emits_nothing()
     {
         var device = NewDevice();
-        var report = new DeviceReport { LightPower = true, LightBrightness = Brightness.FromDp(500) };
+        var report = new DeviceReport { LightPower = true, LightCct = ColourTemperature.FromDp(500) };
         device.ApplyReportedState(report);
 
         var changes = Changes(device.ApplyReportedState(report));
@@ -73,11 +71,11 @@ public class DeviceCapabilityEventTests
     public void Only_the_changed_capability_is_re_emitted()
     {
         var device = NewDevice();
-        device.ApplyReportedState(new DeviceReport { LightPower = true, LightBrightness = Brightness.FromDp(500) });
+        device.ApplyReportedState(new DeviceReport { LightPower = true, LightCct = ColourTemperature.FromDp(0) });
 
-        var changes = Changes(device.ApplyReportedState(new DeviceReport { LightBrightness = Brightness.FromDp(1000) }));
+        var changes = Changes(device.ApplyReportedState(new DeviceReport { LightCct = ColourTemperature.FromDp(1000) }));
 
         Assert.Single(changes);
-        Assert.Equal(100, changes[WindCalmCapabilities.LightBrightness].AsInt());
+        Assert.Equal(100, changes[WindCalmCapabilities.LightCct].AsInt());
     }
 }

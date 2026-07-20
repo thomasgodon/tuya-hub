@@ -34,9 +34,9 @@ public class DeviceCommandBagTests
     [Fact]
     public void Setting_a_facade_property_to_null_removes_it_from_the_bag()
     {
-        var command = new DeviceCommand { LightBrightness = null };
+        var command = new DeviceCommand { LightCct = null };
 
-        Assert.Null(command.LightBrightness);
+        Assert.Null(command.LightCct);
         Assert.True(command.IsEmpty);
     }
 
@@ -57,7 +57,6 @@ public class DeviceCommandBagTests
             FanDirection = FanDirection.Reverse,
             FanTimer = CountdownTimer.FromMinutes(30),
             LightPower = true,
-            LightBrightness = Brightness.FromDp(500),
             LightCct = ColourTemperature.FromDp(1000),
         };
 
@@ -66,9 +65,8 @@ public class DeviceCommandBagTests
         Assert.Equal(FanDirection.Reverse, report.FanDirection);
         Assert.Equal(CountdownTimer.FromMinutes(30), report.FanTimer);
         Assert.Equal(true, report.LightPower);
-        Assert.Equal(Brightness.FromDp(500), report.LightBrightness);
         Assert.Equal(ColourTemperature.FromDp(1000), report.LightCct);
-        Assert.Equal(7, report.Values.Count);
+        Assert.Equal(6, report.Values.Count);
     }
 
     [Fact]

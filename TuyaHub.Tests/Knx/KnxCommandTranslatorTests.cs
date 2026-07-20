@@ -71,13 +71,6 @@ public class KnxCommandTranslatorTests
     }
 
     [Fact]
-    public void LightBrightness_maps_scaled_percent()
-    {
-        var command = Assert.IsType<SetLightBrightnessCommand>(Translate(WindCalmCapabilities.LightBrightness, 0xFF));
-        Assert.Equal(100, command.Percent);
-    }
-
-    [Fact]
     public void LightCct_maps_scaled_percent()
     {
         var command = Assert.IsType<SetLightCctCommand>(Translate(WindCalmCapabilities.LightCct, 0xFF));

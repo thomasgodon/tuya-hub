@@ -29,7 +29,7 @@ public class KnxBridgeCommandMappingTests
             ["FanDirectionCommand"] = "1/1/5",
             ["FanTimerCommand"] = "1/1/7",
             ["LightPowerCommand"] = "1/1/9",
-            ["LightBrightnessCommand"] = "1/1/11",
+            ["LightCctCommand"] = "1/1/13",
         };
         var bindings = BuildBindings(mapping);
 
@@ -39,7 +39,7 @@ public class KnxBridgeCommandMappingTests
         Assert.Equal(WindCalmCapabilities.FanDirection, bindings[GroupAddress.Parse("1/1/5")].Capability.Key);
         Assert.Equal(WindCalmCapabilities.FanTimer, bindings[GroupAddress.Parse("1/1/7")].Capability.Key);
         Assert.Equal(WindCalmCapabilities.LightPower, bindings[GroupAddress.Parse("1/1/9")].Capability.Key);
-        Assert.Equal(WindCalmCapabilities.LightBrightness, bindings[GroupAddress.Parse("1/1/11")].Capability.Key);
+        Assert.Equal(WindCalmCapabilities.LightCct, bindings[GroupAddress.Parse("1/1/13")].Capability.Key);
     }
 
     [Fact]

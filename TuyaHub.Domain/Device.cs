@@ -56,8 +56,6 @@ public sealed class Device : IDevice
                 Fan.Timer.Minutes,
                 Fan.Timer.IsRunning,
                 Light.Power,
-                Light.Brightness.Dp,
-                Light.Brightness.ToPercent(),
                 Light.ColourTemperature.Dp,
                 Light.ColourTemperature.ToPercent());
         }
@@ -116,26 +114,12 @@ public sealed class Device : IDevice
         }
     }
 
-    /// <summary>Light on/off (DP 20). UC-05: turning on does not force a brightness.</summary>
+    /// <summary>Light on/off (DP 20). UC-05.</summary>
     public DeviceCommand SetLightPower(bool on)
     {
         lock (_gate)
         {
             return new DeviceCommand { LightPower = on };
-        }
-    }
-
-    /// <summary>
-    /// Light brightness (DP 22, UC-06). 0 % switches the light off; any positive value ensures the
-    /// light is on and sets the level (dimming also switches the light on).
-    /// </summary>
-    public DeviceCommand SetLightBrightness(Brightness brightness)
-    {
-        lock (_gate)
-        {
-            return brightness.IsOff
-                ? new DeviceCommand { LightPower = false }
-                : new DeviceCommand { LightPower = true, LightBrightness = brightness };
         }
     }
 
@@ -211,12 +195,6 @@ public sealed class Device : IDevice
             {
                 Light.Power = lightPower;
                 Raise(events, WindCalmCapabilities.LightPower, CapabilityValue.Bool(lightPower));
-            }
-
-            if (report.LightBrightness is { } brightness && (full || Light.Brightness != brightness))
-            {
-                Light.Brightness = brightness;
-                Raise(events, WindCalmCapabilities.LightBrightness, CapabilityValue.Int(brightness.ToPercent()));
             }
 
             if (report.LightCct is { } cct && (full || Light.ColourTemperature != cct))

@@ -16,7 +16,7 @@ remote-driven changes); integrator (wants bounded, non-flooding feedback traffic
 3. For each changed DP (60/62/63/64/20/22/23), the bridge maps it to the corresponding KNX value and
    writes the **status GA** only if the value actually changed (change-of-value / suppress duplicates).
 4. Fan speed (DP 62) is published on the 5.010 status GA; a fan-off (DP 60 = false) publishes `0`.
-5. Brightness/CCT are scaled to % / step before publishing.
+5. CCT is scaled to % / step before publishing.
 
 ## Alternate flows
 - **08a — Remote-driven change:** occupant uses the RF remote; no push arrives, but the next poll

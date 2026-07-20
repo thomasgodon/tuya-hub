@@ -239,10 +239,8 @@
           <section class="seg seg-light">
             <div class="seg-title"><span class="bar"></span>Light</div>
             <div class="metric">
-              <span class="big">${l.power ? l.brightnessPercent : 0}</span><span class="big-label">%</span>
               <span class="state ${l.power ? "on" : "off"}">${l.power ? "On" : "Off"}</span>
             </div>
-            <div class="bar"><i style="width:${l.power ? l.brightnessPercent : 0}%"></i></div>
             <div class="meta-row"><span class="cct"><i class="swatch" style="background:${cct.color}"></i>${cct.label}</span></div>
           </section>
         </div>

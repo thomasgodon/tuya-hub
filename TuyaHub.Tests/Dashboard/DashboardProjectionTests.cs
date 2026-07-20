@@ -19,7 +19,7 @@ public class DashboardProjectionTests
         var state = new DeviceStateSnapshot(
             DeviceName.Create("LivingRoomFan"), IsOnline: true,
             FanPower: true, FanSpeedStatus: 3, FanDirection.Reverse, FanTimerMinutes: 30, FanTimerRunning: true,
-            LightPower: true, LightBrightnessDp: 500, LightBrightnessPercent: 50, LightCctDp: 1000, LightCctPercent: 100);
+            LightPower: true, LightCctDp: 1000, LightCctPercent: 100);
 
         var dto = DashboardSnapshotPublisher.Project(WindCalmProfile.Create(), state);
 
@@ -29,7 +29,6 @@ public class DashboardProjectionTests
         Assert.Equal("Reverse", dto.Fan.Direction);
         Assert.Equal(30, dto.Fan.TimerMinutes);
         Assert.True(dto.Light.Power);
-        Assert.Equal(50, dto.Light.BrightnessPercent);
         Assert.Equal(100, dto.Light.CctPercent);
         Assert.Empty(dto.Sections);
     }
@@ -52,7 +51,7 @@ public class DashboardProjectionTests
 
         var state = new DeviceStateSnapshot(
             DeviceName.Create("Plug"), IsOnline: true,
-            false, 0, FanDirection.Forward, 0, false, false, 0, 0, 0, 0)
+            false, 0, FanDirection.Forward, 0, false, false, 0, 0)
         {
             Capabilities = new Dictionary<CapabilityKey, CapabilityValue>
             {

@@ -158,7 +158,6 @@ disables** that function.
     "FanDirectionCommand": "1/1/5",   "FanDirectionStatus": "1/1/6",
     "FanTimerCommand": "1/1/7",       "FanTimerStatus": "1/1/8",
     "LightPowerCommand": "1/1/9",     "LightPowerStatus": "1/1/10",
-    "LightBrightnessCommand": "1/1/11", "LightBrightnessStatus": "1/1/12",
     "LightCctCommand": "1/1/13",      "LightCctStatus": "1/1/14",
     "AvailabilityStatus": "1/1/15"
   }
@@ -175,7 +174,6 @@ Valid mapping keys for the **wind-calm** profile, with their Tuya DP and KNX DPT
 | `FanDirectionCommand` / `FanDirectionStatus` | ⇄ | 63 | 1.001 (0 = forward/summer, 1 = reverse/winter) |
 | `FanTimerCommand` / `FanTimerStatus` | ⇄ | 64 | **7.006** minutes (0–540) |
 | `LightPowerCommand` / `LightPowerStatus` | ⇄ | 20 | 1.001 switch |
-| `LightBrightnessCommand` / `LightBrightnessStatus` | ⇄ | 22 | **5.001** % (KNX 0–100 % ↔ DP 0–1000) |
 | `LightCctCommand` / `LightCctStatus` | ⇄ | 23 | **5.001** % → 3 discrete steps |
 | `AvailabilityStatus` | device → KNX | — (connectivity-driven, no DP) | 1.001 switch |
 
@@ -184,8 +182,11 @@ Notes:
 - **Fan speed is relative.** The command GA is a 3.007 dim-step telegram (±1 level), so current speed is
   reported on the **separate** 5.010 status GA. Dim-up from off turns the fan on at level 1; dim-down at
   level 1 stays at 1 (power off is only via `FanPower`).
+- **The light is on/off + CCT only — no dimming.** The Wind Calm hardware does not honour a brightness
+  write (DP 22), so brightness is not exposed. Use `LightPower` for on/off and `LightCct` for the
+  3-step colour temperature.
 - **Light CCT is flicker-prone.** Leave `LightCctCommand`/`LightCctStatus` empty to skip it; the light then
-  behaves as brightness-only.
+  behaves as on/off-only.
 - See [`docs/use-cases/wind-calm/README.md`](docs/use-cases/wind-calm/README.md) for the full datapoint
   reference and firmware quirks (integer-only fan speed, MCU-owned timer, RF-remote state drift).
 

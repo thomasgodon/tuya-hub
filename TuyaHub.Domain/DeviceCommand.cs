@@ -44,7 +44,6 @@ public sealed record DeviceCommand
     public FanDirection? FanDirection { get => Get<FanDirection>(WindCalmCapabilities.FanDirection); init => Set(WindCalmCapabilities.FanDirection, value); }
     public CountdownTimer? FanTimer { get => Get<CountdownTimer>(WindCalmCapabilities.FanTimer); init => Set(WindCalmCapabilities.FanTimer, value); }
     public bool? LightPower { get => Get<bool>(WindCalmCapabilities.LightPower); init => Set(WindCalmCapabilities.LightPower, value); }
-    public Brightness? LightBrightness { get => Get<Brightness>(WindCalmCapabilities.LightBrightness); init => Set(WindCalmCapabilities.LightBrightness, value); }
     public ColourTemperature? LightCct { get => Get<ColourTemperature>(WindCalmCapabilities.LightCct); init => Set(WindCalmCapabilities.LightCct, value); }
 
     private T? Get<T>(CapabilityKey key) where T : struct

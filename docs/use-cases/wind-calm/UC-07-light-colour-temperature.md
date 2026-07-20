@@ -18,7 +18,7 @@ trade-off and may choose to disable this UC).
 
 ## Alternate flows
 - **07a — Feature disabled:** integrator omits the DP-23 mapping entirely; the UC does not apply and
-  the light is treated as brightness-only (UC-05/06). This is the recommended default given the bug.
+  the light is treated as on/off-only (UC-05). This is the recommended default given the bug.
 - **07b — Continuous KNX input:** if a stepless % arrives, snap to the nearest of {0, 500, 1000}.
 
 ## Error scenarios

@@ -22,7 +22,6 @@ internal static class WindCalmProfile
     private const int DpFanDirection = 63;
     private const int DpFanTimer = 64;
     private const int DpLightPower = 20;
-    private const int DpLightBrightness = 22;
     private const int DpLightCct = 23;
 
     private const string DirectionForward = "forward";
@@ -92,17 +91,6 @@ internal static class WindCalmProfile
                 EncodeStatus = v => KnxDpt.Bool(v.AsBool()),
                 CommandMappingKey = "LightPowerCommand",
                 BuildCommand = (device, payload) => new SetLightPowerCommand(device, KnxDpt.DecodeBool(payload)),
-            },
-            new CapabilityBinding
-            {
-                Key = WindCalmCapabilities.LightBrightness,
-                Dp = DpLightBrightness,
-                EncodeDp = v => ((Brightness)v).Dp,
-                DecodeDp = raw => Brightness.FromDp(Convert.ToInt32(raw)),
-                StatusMappingKey = "LightBrightnessStatus",
-                EncodeStatus = v => KnxDpt.Percent(v.AsInt()),
-                CommandMappingKey = "LightBrightnessCommand",
-                BuildCommand = (device, payload) => new SetLightBrightnessCommand(device, KnxDpt.DecodePercent(payload)),
             },
             new CapabilityBinding
             {

@@ -115,8 +115,6 @@ internal sealed class DashboardSnapshotPublisher
             Light = new LightDto
             {
                 Power = state.LightPower,
-                BrightnessPercent = state.LightBrightnessPercent,
-                BrightnessDp = state.LightBrightnessDp,
                 CctPercent = state.LightCctPercent,
                 CctStep = state.LightCctDp
             },

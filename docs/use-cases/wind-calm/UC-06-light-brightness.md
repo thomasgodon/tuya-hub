@@ -1,5 +1,10 @@
 # UC-06 — Light brightness from KNX
 
+> **⚠️ REMOVED — not supported by the hardware.** The CREATE/IKOHS Wind Calm light is **on/off + CCT
+> only**; writing DP 22 (`bright_value`) has no effect on the fixture. Brightness is therefore no
+> longer exposed on Tuya, in the domain/Application, on KNX, or on the dashboard. This file is kept
+> for historical context only — do not implement it. Light on/off is UC-05; colour temperature is UC-07.
+
 **Summary:** A KNX percentage telegram (DPT 5.001) sets the LED brightness via Tuya DP 22
 (`bright_value`, 0–1000), with scaling in both directions.
 **Primary actor:** KNX installation.

@@ -83,8 +83,6 @@ public sealed class DiscoveredDeviceDto
 public sealed class LightDto
 {
     public bool Power { get; init; }
-    public int BrightnessPercent { get; init; }
-    public int BrightnessDp { get; init; }
 
     /// <summary>Colour-temperature step as a percentage (0 / 50 / 100).</summary>
     public int CctPercent { get; init; }

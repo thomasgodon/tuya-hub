@@ -16,6 +16,5 @@ public static class WindCalmCapabilities
     public static readonly CapabilityKey FanDirection = new("FanDirection");
     public static readonly CapabilityKey FanTimer = new("FanTimer");
     public static readonly CapabilityKey LightPower = new("LightPower");
-    public static readonly CapabilityKey LightBrightness = new("LightBrightness");
     public static readonly CapabilityKey LightCct = new("LightCct");
 }

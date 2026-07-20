@@ -28,7 +28,7 @@ controlled independently.
 | Fan | 63 | `fan_direction` | enum | `forward` / `reverse` | Blade direction (summer / winter) |
 | Fan | 64 | `countdown_left_fan` | int | 0–540 (minutes) | Auto-off timer; **counted down by the device MCU** |
 | Light | 20 | `switch_led` | bool | true/false | Light on/off |
-| Light | 22 | `bright_value` | int | 0–1000 | Brightness (scaled) |
+| Light | 22 | `bright_value` | int | 0–1000 | Brightness — **not exposed; hardware ignores the write** (DP present in firmware but has no effect) |
 | Light | 23 | `temp_value` | int | 0 / 500 / 1000 | Colour temperature (**optional — firmware flicker bug**) |
 
 ## KNX group-object model
@@ -42,7 +42,6 @@ Command (KNX → Tuya) and feedback (Tuya → KNX) are **separate group addresse
 | Fan direction | 63 | 1.001 (0 = forward/summer, 1 = reverse/winter) | 1.001 |
 | Fan timer | 64 | 7.006 minutes | 7.006 remaining |
 | Light power | 20 | 1.001 switch | 1.001 |
-| Light brightness | 22 | 5.001 % | 5.001 % |
 | Light CCT *(optional)* | 23 | 5.001 % → 3 steps | 5.001 % |
 
 **Speed is relative:** the bridge receives 4-bit dim telegrams (DPT 3.007) and walks the level
@@ -58,7 +57,7 @@ Command (KNX → Tuya) and feedback (Tuya → KNX) are **separate group addresse
 | [UC-03](UC-03-fan-direction.md) | Fan direction (summer/winter) from KNX | Fan | KNX installation |
 | [UC-04](UC-04-fan-timer.md) | Fan countdown timer from KNX | Fan | KNX installation |
 | [UC-05](UC-05-light-on-off.md) | Light on/off from KNX | Light | KNX installation |
-| [UC-06](UC-06-light-brightness.md) | Light brightness from KNX | Light | KNX installation |
+| [UC-06](UC-06-light-brightness.md) | Light brightness from KNX — **removed (hardware has no dimming)** | Light | — |
 | [UC-07](UC-07-light-colour-temperature.md) | Light colour temperature from KNX *(optional)* | Light | KNX installation |
 | [UC-08](UC-08-report-state-to-knx.md) | Report device state to KNX (push + poll) | both | tuya-hub |
 | [UC-09](UC-09-device-offline-recovery.md) | Device offline / reconnect | both | tuya-hub |

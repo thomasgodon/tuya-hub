@@ -11,9 +11,6 @@ public sealed class LightEndpoint
     /// <summary>Light power (DP 20).</summary>
     public bool Power { get; internal set; }
 
-    /// <summary>Brightness on the device scale 0..1000 (DP 22).</summary>
-    public Brightness Brightness { get; internal set; } = Brightness.Off;
-
     /// <summary>Colour temperature step (DP 23).</summary>
     public ColourTemperature ColourTemperature { get; internal set; } = ValueObjects.ColourTemperature.FromDp(0);
 }

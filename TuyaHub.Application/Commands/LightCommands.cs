@@ -7,9 +7,6 @@ namespace TuyaHub.Application.Commands;
 
 public sealed record SetLightPowerCommand(DeviceName Device, bool On) : IDeviceCommand;
 
-/// <summary>Brightness as a KNX percentage (0..100). 0 % switches the light off.</summary>
-public sealed record SetLightBrightnessCommand(DeviceName Device, int Percent) : IDeviceCommand;
-
 /// <summary>Colour temperature as a KNX percentage (0..100), snapped to the nearest step.</summary>
 public sealed record SetLightCctCommand(DeviceName Device, int Percent) : IDeviceCommand;
 
@@ -19,14 +16,6 @@ public sealed class SetLightPowerHandler(
 {
     protected override DeviceCommand Apply(Device device, SetLightPowerCommand request)
         => device.SetLightPower(request.On);
-}
-
-public sealed class SetLightBrightnessHandler(
-    IDeviceRegistry registry, IDeviceGateway gateway, ILogger<SetLightBrightnessHandler> logger)
-    : DeviceCommandHandler<SetLightBrightnessCommand>(registry, gateway, logger)
-{
-    protected override DeviceCommand Apply(Device device, SetLightBrightnessCommand request)
-        => device.SetLightBrightness(Brightness.FromPercent(request.Percent));
 }
 
 public sealed class SetLightCctHandler(

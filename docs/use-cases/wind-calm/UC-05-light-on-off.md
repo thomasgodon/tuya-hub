@@ -15,8 +15,8 @@ light treated as its own endpoint).
 3. Bridge reads back DP 20 and publishes it on the light-power status GA.
 
 ## Alternate flows
-- **05a — On restores brightness:** turning on lets the device restore its last `bright_value`
-  (DP 22); the bridge does not force a brightness write here (see UC-06).
+- **05a — On restores prior state:** turning on lets the device restore its last light state; the
+  bridge does not force any additional write here. (Brightness/dimming is not supported — see UC-06.)
 - **05b — Idempotent command:** re-publish status; no write required.
 
 ## Error scenarios
