@@ -8,14 +8,18 @@ using TuyaHub.Infrastructure.Dashboard;
 namespace TuyaHub.Infrastructure.Tuya;
 
 /// <summary>
-/// Passively discovers Tuya devices broadcasting on the LAN and feeds them to the dashboard. Wraps
-/// TuyaNet's <see cref="TuyaScanner"/> (UDP 6666/6667, decrypted with the universal, non-secret
+/// Passively discovers Tuya devices broadcasting on the LAN and feeds them to the dashboard. Drives our
+/// own <see cref="TuyaLanDiscoveryListener"/> (UDP 6666/6667, decrypted with the universal, non-secret
 /// discovery key — no local key needed) inside the Tuya ACL, translating its protocol type into the
 /// domain-agnostic <see cref="TuyaDiscoveryStore"/>. Purely read-only: it binds and listens, never
 /// probes a device or writes any configuration (UC-01).
 ///
+/// The listener replaces TuyaNet's <c>TuyaScanner</c>, whose library-owned thread rethrew any decode
+/// failure and crashed the host on an undecodable (e.g. protocol-3.5) beacon; ours decodes each packet
+/// inside a try/catch and simply skips the bad ones.
+///
 /// Gated by <see cref="DashboardOptions.Enabled"/> — discovery is only ever surfaced on the dashboard,
-/// so when the dashboard is off the scanner is not started and no UDP port is bound.
+/// so when the dashboard is off the listener is not started and no UDP port is bound.
 /// </summary>
 internal sealed class TuyaDiscoveryService(
     TuyaDiscoveryStore store,
@@ -37,13 +41,11 @@ internal sealed class TuyaDiscoveryService(
             return;
         }
 
-        var scanner = new TuyaScanner();
-        scanner.OnDeviceInfoReceived += OnDeviceInfoReceived;
-        scanner.OnNewDeviceInfoReceived += OnDeviceInfoReceived;
+        var listener = new TuyaLanDiscoveryListener(OnBeacon, logger);
 
         try
         {
-            scanner.Start();
+            listener.Start(stoppingToken);
             logger.LogInformation("Tuya LAN discovery started (UDP 6666/6667).");
         }
         catch (Exception ex)
@@ -52,8 +54,7 @@ internal sealed class TuyaDiscoveryService(
             // scenario). Discovery is a best-effort convenience — log and stay down rather than
             // faulting the host and its device connections.
             logger.LogWarning(ex, "Tuya LAN discovery could not start; continuing without it.");
-            scanner.OnDeviceInfoReceived -= OnDeviceInfoReceived;
-            scanner.OnNewDeviceInfoReceived -= OnDeviceInfoReceived;
+            await listener.DisposeAsync();
             return;
         }
 
@@ -72,15 +73,13 @@ internal sealed class TuyaDiscoveryService(
         }
         finally
         {
-            scanner.OnDeviceInfoReceived -= OnDeviceInfoReceived;
-            scanner.OnNewDeviceInfoReceived -= OnDeviceInfoReceived;
-            scanner.Stop();
+            await listener.DisposeAsync();
         }
     }
 
-    private void OnDeviceInfoReceived(object? sender, TuyaDeviceScanInfo info)
+    private void OnBeacon(TuyaDeviceScanInfo info)
     {
-        // Raised on the scanner's background threads; TuyaDiscoveryStore is thread-safe.
+        // Raised on the listener's receive-loop tasks; TuyaDiscoveryStore is thread-safe.
         if (store.Upsert(info.GwId, info.IP, info.Version, info.ProductKey, DateTimeOffset.UtcNow))
             publisher.PublishCurrent();
     }

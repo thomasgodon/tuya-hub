@@ -11,8 +11,11 @@ with the dashboard enabled (`DashboardOptions.Enabled=true`).
 background and the result is shown live on the dashboard.
 
 ## Main flow
-1. tuya-hub listens for Tuya UDP broadcast beacons on the standard discovery ports (6666/6667) via
-   TuyaNet's `TuyaScanner`.
+1. tuya-hub listens for Tuya UDP broadcast beacons on the standard discovery ports (6666/6667) via its
+   own `TuyaLanDiscoveryListener` (reusing TuyaNet's codec but owning the receive loop). Each beacon is
+   decoded inside a per-packet `try/catch`, so an undecodable beacon (a protocol-3.5 `00 00 66 99` frame
+   or stray/malformed UDP) is logged and skipped rather than crashing the host — the reason we no longer
+   use TuyaNet's `TuyaScanner`, whose library-owned thread rethrew such failures fatally.
 2. For each beacon received it records the device ID (`gwId`), IP address, advertised protocol
    version, and product key.
 3. It de-duplicates by device ID and prunes entries whose beacon stops arriving, so the list reflects
@@ -23,8 +26,10 @@ background and the result is shown live on the dashboard.
 5. Operator uses the display to proceed with UC-02 (configuration).
 
 ## Alternate flows
-- **1a. Encrypted beacons (protocol 3.4/3.5):** payload is not readable without keys; tuya-hub
-  still reports ID/IP/version and flags the device as "needs local key".
+- **1a. Protocol 3.1/3.3/3.4 beacons:** decoded with the universal (non-secret) discovery key; tuya-hub
+  reports ID/IP/version/product key and flags the device as "needs local key" (the beacon never carries it).
+- **1b. Protocol 3.5 beacons:** use the newer `00 00 66 99` / AES-GCM framing the codec predates, so they
+  are skipped and such devices do not appear in the "Discovered" list (they no longer crash discovery).
 - **4a. No devices found:** tuya-hub reports zero results and hints at common causes (wrong
   VLAN, client isolation on the AP, host firewall blocking the UDP port).
 

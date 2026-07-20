@@ -131,7 +131,14 @@ status GAs are always separate. No rebuild required to add/remap a device.
 A fourth section, **`DashboardOptions`** (`Enabled` default true in the shipped `appsettings.json`,
 `Port` 8080), gates the read-only web dashboard. When `Enabled=false` the host binds no HTTP endpoint
 and behaves like the original worker. `DashboardOptions.Enabled` **also gates LAN discovery**: when the
-dashboard is off, the Tuya UDP scanner is not started and no discovery port is bound.
+dashboard is off, the Tuya UDP discovery listener is not started and no discovery port is bound.
+
+LAN discovery uses our own `TuyaLanDiscoveryListener` (`Infrastructure/Tuya/`), not TuyaNet's
+`TuyaScanner`: the scanner decoded beacons on a library-owned thread that **rethrew** any decode failure,
+so a single undecodable datagram (a protocol-3.5 `00 00 66 99` beacon, or junk UDP) crashed the whole
+host. The listener binds the same ports (6666/6667), reuses TuyaNet's codec (`internal TuyaParser`, via a
+cached reflection delegate — the PRD forbids hand-rolling 3.3), but decodes each packet inside a
+`try/catch` so bad beacons are logged and skipped. 3.5 devices are not discoverable (framing unsupported).
 
 ## Domain constraints that will bite you (from the Wind Calm use cases)
 

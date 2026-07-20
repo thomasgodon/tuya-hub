@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "TuyaHub": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:17348;http://localhost:17349"
+    }
+  }
+}
