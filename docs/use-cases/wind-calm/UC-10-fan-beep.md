@@ -22,6 +22,14 @@
   not turn the fan on or off.
 - **10b — Idempotent command:** command equals current state → re-publish status; no write strictly
   required.
+- **10c — Startup reconciliation (default silence):** DP 66 is a *persistent* buzzer-enable flag and the
+  firmware ships it **on**, so the module beeps to acknowledge every LAN `CONTROL` (the RF remote does
+  not). The hub therefore enforces a configured desired value once on each (re)connect: after the
+  post-connect `DP_QUERY` it compares the reported DP 66 to `TuyaOptions.Devices[].DesiredBeep`
+  (default `false`) and issues a single corrective write **only if they differ** (query-then-correct —
+  so no beep fires on connect and no redundant write is sent). This is one-shot per connect: a live KNX
+  fan-beep change (main flow) is honored and **not** reverted until the next reconnect. Set
+  `DesiredBeep: true` to keep the confirmation beep.
 
 ## Error scenarios
 - **Write not acknowledged / timeout:** retry once; if still failing, mark device offline (UC-09) and

@@ -55,6 +55,14 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   `CapabilityBinding` (DPT 1.001 command + status, `FanBeep`/`FanBeepStatus` keys — shipped GAs
   `1/1/11`/`1/1/12`), and a 🔔/🔕 chip on the dashboard fan card (`FanDto.Beep`). The KNX ACL and Tuya
   codec needed no changes (table-driven). See UC-10.
+  - **Beep is silenced by default (startup reconciliation).** DP 66 is a *persistent* buzzer-enable flag
+    that ships **on**, so the module beeps on every LAN `CONTROL` (the RF remote does not). `TuyaConnection`
+    now enforces `TuyaOptions.Devices[].DesiredBeep` (bool, default `false`) once per (re)connect: after
+    the post-connect `DP_QUERY` it compares the reported DP 66 and issues one corrective `FanBeep` write
+    **only if it differs** (query-then-correct — no beep on connect, no redundant write). One-shot per
+    connect, so a live KNX fan-beep change is honored until the next reconnect. This lives entirely in
+    `TuyaConnection` (which already receives reports, sends commands, and has the per-device options); the
+    `report.FanBeep`/`DeviceCommand { FanBeep }` reference is inert for profiles without a beep. See UC-10 10c.
 
 - **Post-MVP — CCT step/cycle (long-press) added.** A KNX pushbutton can now *cycle* CCT via a relative
   **DPT 3.007** command, coexisting with the existing absolute-% `LightCct` command (5.001). Added a

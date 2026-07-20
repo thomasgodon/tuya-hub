@@ -40,6 +40,13 @@ internal sealed class TuyaConnection(
     /// <summary>Monotonic timestamp (ms) of the last inbound byte; drives the liveness watchdog.</summary>
     private long _lastInboundTicks;
 
+    /// <summary>
+    /// Set on each (re)connect and cleared by the first report that carries a beep value: a one-shot
+    /// gate for the DP 66 confirmation-beep reconciliation (query-then-correct). One-shot so a live
+    /// KNX FanBeep change is not reverted until the next reconnect.
+    /// </summary>
+    private volatile bool _beepReconcilePending;
+
     private readonly ITuyaCodec _codec = TuyaCodecFactory.Create(name, options, connectTimeout, logger);
 
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -69,7 +76,9 @@ internal sealed class TuyaConnection(
                 backoff.Reset();
                 _lastInboundTicks = Environment.TickCount64;
 
-                // Full state sync on (re)connect so the KNX status GAs are correct immediately.
+                // Full state sync on (re)connect so the KNX status GAs are correct immediately. The
+                // reply also drives the one-shot DP 66 beep reconciliation (see HandleJsonAsync).
+                _beepReconcilePending = true;
                 await SendQueryAsync(cancellationToken);
 
                 using var loopCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -240,6 +249,19 @@ internal sealed class TuyaConnection(
         }
 
         await ingestion.ReportStateAsync(name, report, cancellationToken);
+
+        // Query-then-correct the persistent confirmation-beep flag (DP 66): the firmware ships it
+        // enabled, so it beeps on every LAN command (the RF remote does not). Enforce the configured
+        // desired value once per (re)connect, and only when the device actually disagrees, so no beep
+        // fires on connect. Inert for profiles that don't expose a beep (report.FanBeep stays null).
+        if (_beepReconcilePending && report.FanBeep is { } beep)
+        {
+            _beepReconcilePending = false;
+            if (beep != options.DesiredBeep)
+            {
+                await SendCommandAsync(new DeviceCommand { FanBeep = options.DesiredBeep }, cancellationToken);
+            }
+        }
     }
 
     private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)

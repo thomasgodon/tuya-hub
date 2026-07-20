@@ -18,6 +18,10 @@ light treated as its own endpoint).
 - **05a — On restores prior state:** turning on lets the device restore its last light state; the
   bridge does not force any additional write here. (Brightness/dimming is not supported — see UC-06.)
 - **05b — Idempotent command:** re-publish status; no write required.
+- **05c — No confirmation beep:** the light command produces a single DP 20 write and injects no beep.
+  The module's audible acknowledgement on LAN commands is governed by the persistent DP 66 buzzer flag,
+  which the hub silences by default on connect (UC-10 10c) — so, unlike the RF remote path, an on/off
+  from KNX is silent once reconciled. Set `DesiredBeep: true` to keep the beep.
 
 ## Error scenarios
 - **Write not acknowledged:** retry once; keep status GA at last confirmed value on failure.
