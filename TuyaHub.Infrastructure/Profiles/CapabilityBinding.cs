@@ -1,3 +1,4 @@
+using Knx.Falcon;
 using TuyaHub.Application.Commands;
 using TuyaHub.Domain.ValueObjects;
 
@@ -30,8 +31,8 @@ internal sealed record CapabilityBinding
     /// <summary>The <c>DeviceMapping</c> key of the status GA (e.g. "FanPowerStatus"), or null.</summary>
     public string? StatusMappingKey { get; init; }
 
-    /// <summary>Encodes the capability's scalar to its status GA payload (chooses the DPT).</summary>
-    public Func<CapabilityValue, byte[]>? EncodeStatus { get; init; }
+    /// <summary>Encodes the capability's scalar to its status <see cref="GroupValue"/> (chooses the DPT and bit size).</summary>
+    public Func<CapabilityValue, GroupValue>? EncodeStatus { get; init; }
 
     // ---- KNX command (inbound) ----
     /// <summary>The <c>DeviceMapping</c> key of the command GA (e.g. "FanPower"), or null.</summary>

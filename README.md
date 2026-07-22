@@ -143,7 +143,7 @@ Configure the gateway (`KnxOptions`):
 | `Enabled` | Enable the KNX bus. Set `false` to disable KNX entirely. | ships `false` |
 | `Host` | KNXnet/IP gateway IP (IP tunnelling). | — |
 | `Port` | Gateway port. | `3671` |
-| `IndividualAddress` | tuya-hub's KNX physical address, requested as the **tunnel source address** (KNXnet/IP tunnelling v2). Leave empty to let the gateway assign one; on a tunnelling-v1-only gateway the requested address is ignored and one is assigned automatically. Must not clash with a real device on the bus. | e.g. `1.1.100` |
+| `IndividualAddress` | tuya-hub's KNX physical address. | e.g. `1.1.100` |
 | `ReconnectInitialBackoffSeconds` / `ReconnectMaxBackoffSeconds` | Bus reconnect backoff bounds. | `1` / `30` |
 
 Then map each device function to a KNX group address under `DeviceMappings.<Name>`. **Command** (KNX → device)

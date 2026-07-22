@@ -85,7 +85,7 @@ internal sealed class KnxBridge : IAsyncDisposable
     /// for read responses (FR-7), and writes it to the bus. No-op when the bus is disabled or the
     /// capability has no mapped status GA.
     /// </summary>
-    public async Task PublishAsync(DeviceName device, CapabilityKey capability, byte[] value, CancellationToken cancellationToken)
+    public async Task PublishAsync(DeviceName device, CapabilityKey capability, GroupValue value, CancellationToken cancellationToken)
     {
         if (_options.Enabled is false)
         {
@@ -100,7 +100,7 @@ internal sealed class KnxBridge : IAsyncDisposable
                 return; // GA disabled for this device/capability.
             }
 
-            if (mapped.Value is not null && mapped.Value.SequenceEqual(value))
+            if (SameValue(mapped.Value, value))
             {
                 return; // Unchanged — suppress the redundant write.
             }
@@ -112,12 +112,22 @@ internal sealed class KnxBridge : IAsyncDisposable
         await WriteAsync(status, cancellationToken);
     }
 
+    /// <summary>
+    /// Redundant-write / dedup comparison (FR-8). Compares both the DPT bit size and the payload bytes,
+    /// rather than relying on <c>GroupValue.Equals</c>, so a 1-bit and an 8-bit value with the same bytes
+    /// are never treated as equal.
+    /// </summary>
+    private static bool SameValue(GroupValue? cached, GroupValue candidate)
+        => cached is not null
+           && cached.SizeInBit == candidate.SizeInBit
+           && cached.Value.SequenceEqual(candidate.Value);
+
     private async Task WriteAsync(KnxStatusValue status, CancellationToken cancellationToken)
     {
         try
         {
             await EnsureConnectedAsync(cancellationToken);
-            await _bus!.WriteGroupValueAsync(status.Address, new GroupValue(status.Value!), MessagePriority.Low, cancellationToken);
+            await _bus!.WriteGroupValueAsync(status.Address, status.Value!, MessagePriority.Low, cancellationToken);
             _logger.LogDebug("KNX write {Status}", status);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -306,7 +316,7 @@ internal sealed class KnxBridge : IAsyncDisposable
             return;
         }
 
-        await bus.RespondGroupValueAsync(status.Address, new GroupValue(status.Value), MessagePriority.Low, CancellationToken.None);
+        await bus.RespondGroupValueAsync(status.Address, status.Value, MessagePriority.Low, CancellationToken.None);
         _logger.LogInformation("KNX read answered {Status}", status);
     }
 

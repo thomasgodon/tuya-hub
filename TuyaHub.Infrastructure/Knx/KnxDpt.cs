@@ -1,38 +1,42 @@
+using Knx.Falcon;
+
 namespace TuyaHub.Infrastructure.Knx;
 
 /// <summary>
 /// Encoders and decoders for the KNX datapoint types used by the bridge. Each side works in
-/// <b>KNX wire order</b> (big-endian): encoders return the raw group-value payload ready to hand
-/// straight to a <c>GroupValue</c> (feedback path); decoders read the raw payload of an inbound
-/// <c>GroupValue</c> back into a domain-shaped value (command path). Keeping both directions in this
-/// single tested place settles the byte order once. (DsmrHub achieved the encode side by reversing
-/// little-endian <c>BitConverter</c> output at write time.)
+/// <b>KNX wire order</b> (big-endian). Encoders return a fully-formed <see cref="GroupValue"/> — the
+/// bit size matters: DPT 1.001 must be a <b>1-bit</b> "short" value (<c>new GroupValue(bool)</c>,
+/// <c>SizeInBit == 1</c>), not an 8-bit byte array. A boolean wrapped in <c>new GroupValue(byte[])</c>
+/// is always 8-bit; actuators tolerate that on a <i>write</i> but a reader discards the malformed
+/// oversized <i>response</i>, so boolean <c>GroupValueRead</c>s went unanswered. Decoders read the raw
+/// payload of an inbound <c>GroupValue</c> back into a domain-shaped value (command path). Keeping both
+/// directions in this single tested place settles size and byte order once.
 /// </summary>
 internal static class KnxDpt
 {
-    /// <summary>DPT 1.001 (switch): a single byte, 1 = true / 0 = false.</summary>
-    public static byte[] Bool(bool value) => [(byte)(value ? 1 : 0)];
+    /// <summary>DPT 1.001 (switch): a 1-bit "short" group value (<c>SizeInBit == 1</c>).</summary>
+    public static GroupValue Bool(bool value) => new(value);
 
-    /// <summary>DPT 5.010 (counter, 0..255): a single byte carrying the value verbatim (fan speed 0..6).</summary>
-    public static byte[] Count(int value) => [(byte)Math.Clamp(value, 0, 255)];
+    /// <summary>DPT 5.010 (counter, 0..255): a single 8-bit byte carrying the value verbatim (fan speed 0..6).</summary>
+    public static GroupValue Count(int value) => new((byte)Math.Clamp(value, 0, 255));
 
     /// <summary>
-    /// DPT 5.001 (scaling, 0..100 %): a single byte scaled to 0..255, <c>round(pct * 255 / 100)</c>.
+    /// DPT 5.001 (scaling, 0..100 %): a single 8-bit byte scaled to 0..255, <c>round(pct * 255 / 100)</c>.
     /// </summary>
-    public static byte[] Percent(int percent)
+    public static GroupValue Percent(int percent)
     {
         var clamped = Math.Clamp(percent, 0, 100);
         var scaled = (int)Math.Round(clamped * 255 / 100.0, MidpointRounding.AwayFromZero);
-        return [(byte)scaled];
+        return new((byte)scaled);
     }
 
     /// <summary>
     /// DPT 7.006 (2-byte unsigned, minutes): two bytes, big-endian high byte first.
     /// </summary>
-    public static byte[] Minutes(int minutes)
+    public static GroupValue Minutes(int minutes)
     {
         var value = (ushort)Math.Clamp(minutes, 0, ushort.MaxValue);
-        return [(byte)(value >> 8), (byte)(value & 0xFF)];
+        return new([(byte)(value >> 8), (byte)(value & 0xFF)]);
     }
 
     /// <summary>DPT 1.001 (switch): true when the low bit of the first payload byte is set.</summary>

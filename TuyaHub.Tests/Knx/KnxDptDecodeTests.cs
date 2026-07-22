@@ -24,7 +24,7 @@ public class KnxDptDecodeTests
     [InlineData(false)]
     public void Bool_round_trips(bool value)
     {
-        Assert.Equal(value, KnxDpt.DecodeBool(KnxDpt.Bool(value)));
+        Assert.Equal(value, KnxDpt.DecodeBool(KnxDpt.Bool(value).Value));
     }
 
     [Theory]
@@ -33,7 +33,7 @@ public class KnxDptDecodeTests
     [InlineData(50, 50)]   // encode 50 -> 128, decode 128 -> round(50.19) = 50
     public void Percent_round_trips(int percent, int expected)
     {
-        Assert.Equal(expected, KnxDpt.DecodePercent(KnxDpt.Percent(percent)));
+        Assert.Equal(expected, KnxDpt.DecodePercent(KnxDpt.Percent(percent).Value));
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class KnxDptDecodeTests
     [InlineData(540)]   // Wind Calm max timer
     public void Minutes_round_trips(int minutes)
     {
-        Assert.Equal(minutes, KnxDpt.DecodeMinutes(KnxDpt.Minutes(minutes)));
+        Assert.Equal(minutes, KnxDpt.DecodeMinutes(KnxDpt.Minutes(minutes).Value));
     }
 
     [Fact]

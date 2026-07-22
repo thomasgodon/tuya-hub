@@ -8,9 +8,14 @@ public class KnxDptTests
     [Theory]
     [InlineData(true, 1)]
     [InlineData(false, 0)]
-    public void Bool_encodes_single_byte(bool value, byte expected)
+    public void Bool_encodes_one_bit_group_value(bool value, byte expected)
     {
-        Assert.Equal([expected], KnxDpt.Bool(value));
+        var gv = KnxDpt.Bool(value);
+
+        // DPT 1.001 must be a 1-bit "short" value — an 8-bit response is discarded by readers, so a
+        // byte[]-backed GroupValue (SizeInBit 8) is exactly the bug this asserts against.
+        Assert.Equal(1, gv.SizeInBit);
+        Assert.Equal([expected], gv.Value);
     }
 
     [Theory]
@@ -19,7 +24,10 @@ public class KnxDptTests
     [InlineData(6, 6)]   // top speed
     public void Count_encodes_verbatim_byte(int value, byte expected)
     {
-        Assert.Equal([expected], KnxDpt.Count(value));
+        var gv = KnxDpt.Count(value);
+
+        Assert.Equal(8, gv.SizeInBit);
+        Assert.Equal([expected], gv.Value);
     }
 
     [Theory]
@@ -28,14 +36,17 @@ public class KnxDptTests
     [InlineData(50, 128)]   // round(50 * 255 / 100) = 127.5 -> 128 (away from zero)
     public void Percent_scales_to_255(int percent, byte expected)
     {
-        Assert.Equal([expected], KnxDpt.Percent(percent));
+        var gv = KnxDpt.Percent(percent);
+
+        Assert.Equal(8, gv.SizeInBit);
+        Assert.Equal([expected], gv.Value);
     }
 
     [Fact]
     public void Percent_clamps_out_of_range()
     {
-        Assert.Equal([(byte)0], KnxDpt.Percent(-10));
-        Assert.Equal([(byte)255], KnxDpt.Percent(150));
+        Assert.Equal([(byte)0], KnxDpt.Percent(-10).Value);
+        Assert.Equal([(byte)255], KnxDpt.Percent(150).Value);
     }
 
     [Theory]
@@ -45,6 +56,9 @@ public class KnxDptTests
     [InlineData(256, new byte[] { 0x01, 0x00 })]
     public void Minutes_encodes_big_endian_uint16(int minutes, byte[] expected)
     {
-        Assert.Equal(expected, KnxDpt.Minutes(minutes));
+        var gv = KnxDpt.Minutes(minutes);
+
+        Assert.Equal(16, gv.SizeInBit);
+        Assert.Equal(expected, gv.Value);
     }
 }

@@ -71,23 +71,22 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   `Steps {0,500,1000}` that **wraps** at the rails (unlike fan speed, which clamps). Shipped GA `1/1/16`.
   Table-driven: no `KnxCommandTranslator`/`KnxBridge` changes. See UC-07 (07c).
 
-- **Post-MVP — KNX read-response hardened (individual-address fix).** `GroupValueRead` on a status GA
-  was already answered from the cached value (`KnxBridge.AnswerReadAsync`, FR-7/UC-08b), but two issues
-  could silence outbound telegrams. `EnsureConnectedAsync` used to call `SetInterfaceConfigurationAsync`
-  after connect, which **reprograms the tunnelling interface's own physical address** to
-  `KnxOptions.IndividualAddress`; a clash with a real device makes the gateway reject the hub's
-  *outbound* telegrams — killing both status writes **and** read responses while inbound commands keep
-  working. That call is removed; the configured address is now requested as the **tunnel source address**
-  via `IpTunnelingConnectorParameters.IndividualAddress` (tunnelling v2, `FallbackToAnyIndividualAddress
-  = true`) *before* `ConnectAsync`, with a retry that lets the gateway assign an address if the interface
-  is v1-only (so v1 gateways keep working). `IndividualAddress` is now optional (empty = gateway-assigned).
-  Also: every inbound group telegram and each read-answer outcome (answered / no-cached-value / unmapped
-  GA / bus-down) is logged at **Information** so "reads not answered" is diagnosable from `docker logs`,
-  and `AnswerReadAsync` captures `_bus` into a local to avoid a reconnect race. The cache-null window is
-  only *before the first device report* (`PublishAsync` caches the value even while the bus is down, and
-  `Device.ApplyReportedState` full-syncs every reported capability on the first report), so no
-  connect-time re-publish was added — priming an un-reported capability from its default would publish a
-  fabricated value.
+- **Post-MVP — KNX boolean read-response fixed (DPT 1.001 1-bit sizing).** `GroupValueRead` on a status
+  GA was already answered from the cached value (`KnxBridge.AnswerReadAsync`, FR-7/UC-08b), but **boolean
+  status reads were never answered while multi-byte ones were.** Root cause (verified against the shipped
+  `Knx.Falcon.Sdk 6.4.8671` assembly): `KnxDpt.Bool` returned a `byte[]` wrapped in `new GroupValue(byte[])`,
+  which is **always 8-bit** (`SizeInBit == 8`, `new GroupValue(bool)` is 1-bit). DPT 1.001 must be a 1-bit
+  "short" group value packed into the APCI octet; an actuator tolerates an oversized *write* but a reader
+  discards an oversized *response*, so FanPower/FanDirection/LightPower/Availability writes worked yet their
+  reads didn't (5.010 speed, 5.001 CCT, 7.006 timer were already correctly 8/16-bit and answered). Fix: the
+  `KnxDpt` **encoders now return `GroupValue`** (`Bool → new GroupValue(bool)` etc.), and `GroupValue` is
+  carried end-to-end — `CapabilityBinding.EncodeStatus : Func<CapabilityValue, GroupValue>`,
+  `KnxStatusValue.Value : GroupValue?`, `KnxBridge.PublishAsync`/`WriteAsync`/`AnswerReadAsync` pass it
+  straight to `WriteGroupValueAsync`/`RespondGroupValueAsync` (no `new GroupValue(byte[])` re-wrap), dedup
+  compares `SizeInBit` + payload. Decoders stay `byte[]`. Also added: every inbound group telegram and each
+  read-answer outcome (answered / no-cached-value / unmapped GA / bus-down) is logged at **Information** so
+  "reads not answered" is diagnosable from `docker logs`, and `AnswerReadAsync` captures `_bus` into a local
+  to avoid a reconnect race.
 
 The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
 declared architecture and milestones rather than inventing your own.
