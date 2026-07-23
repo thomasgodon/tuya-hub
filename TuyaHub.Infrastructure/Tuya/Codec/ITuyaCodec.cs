@@ -14,6 +14,15 @@ internal interface ITuyaCodec
     ProtocolVersion Version { get; }
 
     /// <summary>
+    /// Whether <see cref="TuyaConnection"/> should run the periodic heartbeat loop for this codec.
+    /// Codecs whose keepalive/liveness is already carried by the <c>DP_QUERY</c> poll return <c>false</c>
+    /// — the hand-rolled 3.4/3.5 <c>HEART_BEAT</c> frame drops the socket on some firmware (a 3.5 unit
+    /// closes the connection on receipt) and adds nothing the poll does not. Only TuyaNet's
+    /// library-proven 3.1/3.3 heartbeat opts in.
+    /// </summary>
+    bool UsesHeartbeat { get; }
+
+    /// <summary>
     /// Performs the 3.4/3.5 session-key negotiation on a freshly-connected stream, before any DP traffic.
     /// A no-op for 3.1/3.3. Must be called on every (re)connect — the session key is per-connection.
     /// </summary>

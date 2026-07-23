@@ -17,7 +17,8 @@ namespace TuyaHub.Infrastructure.Tuya;
 /// and the 3.4/3.5 session handshake) live behind <see cref="ITuyaCodec"/>; this class is transport-only
 /// and owns the single TCP socket plus the reliability layer the codec lacks:
 /// <list type="bullet">
-/// <item>a <b>heartbeat</b> to keep the module from dropping the idle socket (~30 s);</item>
+/// <item>a <b>heartbeat</b> to keep the module from dropping the idle socket (~30 s) — only for codecs
+/// that opt in (<see cref="ITuyaCodec.UsesHeartbeat"/>); 3.4/3.5 skip it and lean on the poll;</item>
 /// <item>a continuous <b>read loop</b> that decodes unsolicited STATUS pushes into domain reports;</item>
 /// <item>a <b>poll loop</b> (DP_QUERY) as the backstop for RF-remote changes that do not push;</item>
 /// <item>a <b>liveness watchdog</b> that force-reconnects a stalled/half-open socket when no inbound
@@ -85,7 +86,12 @@ internal sealed class TuyaConnection(
 
                 using var loopCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 var read = ReadLoopAsync(loopCts.Token);
-                var heartbeat = HeartbeatLoopAsync(loopCts.Token);
+                // The hand-rolled 3.4/3.5 heartbeat drops the socket on some firmware; those codecs opt
+                // out and rely on the poll for keepalive/liveness. A never-completing placeholder keeps
+                // the WhenAny/WhenAll shape uniform.
+                var heartbeat = _codec.UsesHeartbeat
+                    ? HeartbeatLoopAsync(loopCts.Token)
+                    : Task.Delay(Timeout.Infinite, loopCts.Token);
                 var poll = PollLoopAsync(loopCts.Token);
                 var watchdog = WatchdogLoopAsync(loopCts.Token);
 

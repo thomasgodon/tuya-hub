@@ -110,6 +110,27 @@ public class TuyaSessionCodecTests
         Assert.Equal("bfdevice123", (string)body["devId"]!);
     }
 
+    [Theory]
+    [InlineData("3.4")]
+    [InlineData("3.5")]
+    public void Session_codec_does_not_use_a_heartbeat(string version)
+    {
+        // Regression: the hand-rolled HEART_BEAT drops the socket on a 3.5 unit (flapping the link ~every
+        // 10 s) regardless of body, so the session codec opts out of the heartbeat loop entirely and relies
+        // on the DP_QUERY poll for keepalive/liveness.
+        Assert.False(Codec(version).UsesHeartbeat);
+    }
+
+    [Theory]
+    [InlineData("3.1")]
+    [InlineData("3.3")]
+    public void TuyaNet_codec_uses_a_heartbeat(string version)
+    {
+        // 3.1/3.3 keep TuyaNet's library-proven heartbeat.
+        var codec = new TuyaNetCodec(Options(version), ProtocolVersion.Create(version));
+        Assert.True(codec.UsesHeartbeat);
+    }
+
     /// <summary>
     /// A minimal in-memory Tuya device: it decodes the handshake frames the codec writes, replies with a
     /// valid SESS_KEY_NEG_RESP, verifies the FINISH HMAC, and derives its own session key.

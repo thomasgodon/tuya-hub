@@ -16,6 +16,9 @@ internal sealed class TuyaNetCodec : ITuyaCodec
 
     public ProtocolVersion Version { get; }
 
+    /// <summary>3.1/3.3 use TuyaNet's library-proven <c>HEART_BEAT</c> keepalive.</summary>
+    public bool UsesHeartbeat => true;
+
     public TuyaNetCodec(TuyaDeviceOptions options, ProtocolVersion version)
     {
         Version = version;

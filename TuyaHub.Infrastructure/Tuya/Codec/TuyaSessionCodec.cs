@@ -40,6 +40,14 @@ internal sealed class TuyaSessionCodec : ITuyaCodec
 
     public ProtocolVersion Version { get; }
 
+    /// <summary>
+    /// 3.4/3.5 do <b>not</b> use a heartbeat: the 10s <c>DP_QUERY</c> poll already carries keepalive and
+    /// feeds the liveness watchdog, and the hand-rolled <c>HEART_BEAT</c> frame drops the socket on a 3.5
+    /// unit (flapping the link every heartbeat) regardless of body. <see cref="BuildHeartbeat"/> is kept
+    /// for the interface but is off the hot path.
+    /// </summary>
+    public bool UsesHeartbeat => false;
+
     public TuyaSessionCodec(
         DeviceName name,
         TuyaDeviceOptions options,
@@ -133,9 +141,13 @@ internal sealed class TuyaSessionCodec : ITuyaCodec
     }
 
     // 3.4/3.5 HEART_BEAT carries the same {gwId,devId} identifying body tinytuya sends (and that our
-    // BuildQuery already uses). A bare "{}" body — no gwId/devId — makes some firmware (observed on a 3.5
-    // unit) drop the socket on receipt, flapping the link every heartbeat. HEART_BEAT is in the
-    // no-version-header set, so (like BuildQuery) it is sent unprefixed and session-key encrypted.
+    // BuildQuery already uses). HEART_BEAT is in the no-version-header set, so (like BuildQuery) it is
+    // sent unprefixed and session-key encrypted.
+    //
+    // NOTE: not on the hot path. The {gwId,devId} body did not stop a 3.5 unit dropping the socket on
+    // every heartbeat, so the session codec reports UsesHeartbeat=false and TuyaConnection never runs
+    // the heartbeat loop for 3.4/3.5 — keepalive/liveness comes from the DP_QUERY poll instead. Kept to
+    // satisfy the interface and document the frame shape (see the regression test).
     public byte[] BuildHeartbeat()
     {
         var envelope = new Dictionary<string, object>

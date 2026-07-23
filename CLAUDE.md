@@ -131,6 +131,22 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   **Information** so it's confirmable from `docker logs`. Unit tests: `TuyaConnectionBaselineTests`
   (already-satisfied → no write; wrong state → writes only the differing DP; unreported DP → skipped).
 
+- **Post-MVP — session codec (3.4/3.5) no longer sends a heartbeat at all (the real flap fix; supersedes
+  the `{gwId,devId}` body change above).** The earlier `{gwId,devId}` `BuildHeartbeat` body was a hypothesis
+  never exercised live — and live logs later showed `VentilatorVictor` (3.5) **still** flapping (connect →
+  device-side close → reconnect ~every heartbeat) with it. The one thing actually proven was *"heartbeat
+  disabled → link rock-stable."* So the 3.5 firmware rejects the `HEART_BEAT` frame regardless of body. Fix:
+  `ITuyaCodec` gains `UsesHeartbeat`; `TuyaSessionCodec` returns **`false`** (both 3.4 and 3.5),
+  `TuyaNetCodec` returns **`true`** (3.1/3.3 heartbeat is library-proven). `TuyaConnection.RunAsync` only
+  starts `HeartbeatLoopAsync` when the codec opts in (a `Task.Delay(Timeout.Infinite)` placeholder keeps the
+  `WhenAny`/`WhenAll(Swallow(...))` shape uniform). 3.4/3.5 keepalive + the liveness watchdog are carried by
+  the existing 10s `DP_QUERY` poll (proven to round-trip; 10s poll < 30s liveness < ~30s module idle-drop).
+  `BuildHeartbeat` is kept (interface + regression test) but off the hot path. Why the drop was invisible in
+  logs: the read-loop close throws into `Task.WhenAny`, which `Swallow(...)` discards, so it surfaced as a
+  clean `offline; reconnecting` with no `connection error` warning. `HeartbeatIntervalSeconds` now applies
+  only to the TuyaNet codec. Tests: `TuyaSessionCodecTests.Session_codec_does_not_use_a_heartbeat`
+  (3.4/3.5 → false) and `TuyaNet_codec_uses_a_heartbeat` (3.1/3.3 → true).
+
 The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
 declared architecture and milestones rather than inventing your own.
 

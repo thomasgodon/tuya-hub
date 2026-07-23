@@ -110,8 +110,8 @@ Global `TuyaOptions` tunables:
 | Key | Meaning | Default |
 |-----|---------|---------|
 | `PollIntervalSeconds` | `DP_QUERY` poll cadence (catches RF-remote changes that don't push). | `10` |
-| `HeartbeatIntervalSeconds` | Keep-alive interval. | `10` |
-| `LivenessTimeoutSeconds` | Watchdog force-reconnect if no inbound byte within this window (must exceed heartbeat). | `30` |
+| `HeartbeatIntervalSeconds` | Keep-alive interval. **Only used by the 3.1/3.3 (TuyaNet) codec** — 3.4/3.5 send no heartbeat and rely on the poll for keepalive. | `10` |
+| `LivenessTimeoutSeconds` | Watchdog force-reconnect if no inbound byte within this window (must exceed the poll cadence; and the heartbeat where one is used). | `30` |
 | `ConnectTimeoutSeconds` | TCP connect timeout per attempt. | `5` |
 | `ReconnectInitialBackoffSeconds` / `ReconnectMaxBackoffSeconds` | Reconnect backoff bounds. | `1` / `30` |
 
