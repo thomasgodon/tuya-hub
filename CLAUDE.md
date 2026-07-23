@@ -147,6 +147,16 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   only to the TuyaNet codec. Tests: `TuyaSessionCodecTests.Session_codec_does_not_use_a_heartbeat`
   (3.4/3.5 → false) and `TuyaNet_codec_uses_a_heartbeat` (3.1/3.3 → true).
 
+- **Post-MVP — dashboard KNX pill now tracks the bus in real time.** The pill reads
+  `KnxBridge.IsConnected` at snapshot-**publish** time, and snapshots were only published on startup and
+  on device state-change events — so a KNX connect that happened *between* device events (e.g. after the
+  gateway's tunnel slots freed up post-startup) left the pill stuck on "disconnected" until the next
+  device change. `KnxConnectionSupervisor` now calls `DashboardSnapshotPublisher.PublishCurrent()` after
+  each connect, drop, and failed connect, so the pill flips immediately. The bridge can't publish itself
+  (the publisher already depends on `KnxBridge` → DI cycle); the supervisor is the one place that observes
+  both transitions. The refresh is guarded (a publish fault can't stall the reconnect loop) and inert when
+  the dashboard is disabled.
+
 The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
 declared architecture and milestones rather than inventing your own.
 
