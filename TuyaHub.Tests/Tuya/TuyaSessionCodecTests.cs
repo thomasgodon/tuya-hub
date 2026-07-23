@@ -88,6 +88,28 @@ public class TuyaSessionCodecTests
         Assert.Contains("bfdevice123", Encoding.UTF8.GetString(plaintext));
     }
 
+    [Theory]
+    [InlineData("3.4")]
+    [InlineData("3.5")]
+    public void Heartbeat_carries_the_gwId_devId_identifying_body(string version)
+    {
+        // Regression: a bare "{}" heartbeat body (no gwId/devId) makes 3.5 firmware drop the socket on
+        // every heartbeat, so the connection flaps ~every 10 s. HEART_BEAT must carry {gwId,devId}, like
+        // DP_QUERY_NEW does (matching tinytuya).
+        var key = Encoding.ASCII.GetBytes(LocalKey);
+        var codec = Codec(version);
+
+        var frame = codec.BuildHeartbeat();
+        var (cmd, plaintext) = version == "3.5"
+            ? TuyaFrame.Parse6699(frame, key)
+            : TuyaFrame.Parse55AA(frame, key);
+        var body = JObject.Parse(Encoding.UTF8.GetString(plaintext));
+
+        Assert.Equal(9u, cmd); // HEART_BEAT
+        Assert.Equal("bfdevice123", (string)body["gwId"]!);
+        Assert.Equal("bfdevice123", (string)body["devId"]!);
+    }
+
     /// <summary>
     /// A minimal in-memory Tuya device: it decodes the handshake frames the codec writes, replies with a
     /// valid SESS_KEY_NEG_RESP, verifies the FINISH HMAC, and derives its own session key.

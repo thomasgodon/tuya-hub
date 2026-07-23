@@ -58,9 +58,10 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   option + `TuyaConnection` reconcile machinery, and the `FanBeep`/`FanBeepStatus` config keys are all
   gone). Replaced by a hidden **always-silence**: `DeviceProfile.OnConnectDps` (a raw dp→value map,
   empty by default) is set to `{"66": false}` by `WindCalmProfile`; on each (re)connect `TuyaConnection`
-  writes it once (blind, via `_codec.BuildControl`) right after the state-sync `DP_QUERY`. Inert for
-  profiles that declare no `OnConnectDps`, and a harmless no-op on firmware that doesn't implement DP 66
-  (e.g. the 3.4 `XW-FAN-215-D`, which must be muted in hardware). See UC-10.
+  reconciles it against the device's first state readback and writes **only the DPs whose value differs**
+  (see the conditional-reconcile bullet below — originally a blind write, changed because a redundant
+  write beeps). Inert for profiles that declare no `OnConnectDps`, and skipped on firmware that doesn't
+  report DP 66 (e.g. the 3.4 `XW-FAN-215-D`, which must be muted in hardware). See UC-10.
 
 - **Post-MVP — CCT step/cycle (long-press) added.** A KNX pushbutton can now *cycle* CCT via a relative
   **DPT 3.007** command, coexisting with the existing absolute-% `LightCct` command (5.001). Added a
@@ -83,10 +84,52 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   carried end-to-end — `CapabilityBinding.EncodeStatus : Func<CapabilityValue, GroupValue>`,
   `KnxStatusValue.Value : GroupValue?`, `KnxBridge.PublishAsync`/`WriteAsync`/`AnswerReadAsync` pass it
   straight to `WriteGroupValueAsync`/`RespondGroupValueAsync` (no `new GroupValue(byte[])` re-wrap), dedup
-  compares `SizeInBit` + payload. Decoders stay `byte[]`. Also added: every inbound group telegram and each
-  read-answer outcome (answered / no-cached-value / unmapped GA / bus-down) is logged at **Information** so
-  "reads not answered" is diagnosable from `docker logs`, and `AnswerReadAsync` captures `_bus` into a local
-  to avoid a reconnect race.
+  compares `SizeInBit` + payload. Decoders stay `byte[]`. Every inbound group telegram and each read-answer
+  outcome (answered / no-cached-value / unmapped GA) is logged (raise the level to see them — see the
+  KNX-logging bullet below), and `AnswerReadAsync` captures `_bus` into a local to avoid a reconnect race.
+
+- **Post-MVP — KNX per-telegram logging moved to Debug (was flooding the log).** A live KNX bus is busy
+  (many broadcasts on GAs the hub doesn't map); logging every inbound telegram at **Information** produced
+  ~15+ lines/s in `docker logs`. The per-message KNX logs — inbound telegram (`KNX inbound … on …`) and the
+  read-answer outcomes (unmapped GA / no-cached-value / answered) — are now **`Debug`**. What stays at
+  **Information**: connection lifecycle (`Connecting`/`Connected to KNX interface`). What stays at
+  **Warning**: real problems (write failed, bus dropped, read unanswered because bus down, command with no
+  value, inbound-handler exception). Outbound write/command logs were already `Debug`. So at the default
+  level KNX shows only connect/disconnect + genuine errors; set the KNX log level to `Debug` to trace
+  telegrams when diagnosing read/command issues.
+
+- **Post-MVP — 3.5 heartbeat frame fixed (was flapping the connection every ~10s).** The hand-rolled
+  session codec's `TuyaSessionCodec.BuildHeartbeat` sent an encrypted **`"{}"`** body for the periodic
+  `HEART_BEAT` (cmd 9). A 3.5 unit (`VentilatorVictor`) **closed the socket on receipt of every
+  heartbeat**, so the connection dropped ~10s after each connect and reconnected in a loop — which also
+  re-ran the `OnConnectDps` `{66:false}` baseline write on every reconnect (the "beeps on reconnect"
+  report), and under load the rapid socket churn exhausted the module's ~3-socket cap so *new* connects
+  timed out (looked like "can't connect", initially misread as KNX-flood thread starvation). Root cause
+  confirmed empirically: with the heartbeat disabled the link is rock-stable; my live probe never sent a
+  heartbeat so it was never exercised. Fix: `BuildHeartbeat` now sends the same **`{"gwId","devId"}`**
+  identifying body tinytuya uses (and that `BuildQuery` already sends) — an empty payload also works but
+  the `{gwId,devId}` form matches the reference and the device's accepted query shape. `HEART_BEAT` stays
+  in the no-version-header set (unprefixed, session-key encrypted). Regression test added
+  (`TuyaSessionCodecTests.Heartbeat_carries_the_gwId_devId_identifying_body`). Also fixed alongside: a
+  `TuyaConnection.ConnectAsync` **socket leak** — a failed/timed-out connect never reached `_client` so
+  `CloseSocket()` couldn't dispose it, leaking a socket per failed attempt against the ~3-socket cap; it
+  now disposes the `TcpClient` in a `catch`. Note: a single **startup** reconnect can still occur on a
+  rapid restart (leftover device-side socket from the killed instance not yet reaped) — intermittent,
+  self-heals in ~1s, not the baseline write's doing (verified: clean startups occur with and without it).
+
+- **Post-MVP — `OnConnectDps` baseline is now a conditional reconcile, not a blind write (kills the
+  reconnect beep).** Live testing showed the 3.5 `VentilatorVictor` **beeps on *any* DP 66 write — even a
+  redundant `{66:false}` when the buzzer is already off** (the connect itself is silent; the write is what
+  beeps). Since Victor's DP 66 already persists `false`, the old blind on-connect write silenced nothing
+  yet beeped on every (re)connect. Fix: `TuyaConnection` no longer writes `OnConnectDps` blindly at connect.
+  It arms `_baselineReconciled=false`, and on the **first state report** (from the connect `DP_QUERY`)
+  `ReconcileBaselineAsync` writes only the DPs whose **current reported value differs** from the baseline
+  (`ComputeBaselineWrites`, compared via invariant string form). So: already-off buzzer → **no write, no
+  beep, ever** (both the user's devices); buzzer genuinely on → one write to correct it (the single
+  intended beep), then quiet. A DP the device doesn't report (3.4 `XW-FAN-215-D`, no DP 66) is skipped.
+  Logs `already satisfied; no write sent` or `wrote connect-time baseline DPs [...] (state differed)` at
+  **Information** so it's confirmable from `docker logs`. Unit tests: `TuyaConnectionBaselineTests`
+  (already-satisfied → no write; wrong state → writes only the differing DP; unreported DP → skipped).
 
 The MVP is functionally complete. Future work is general hardening. When implementing, follow the PRD's
 declared architecture and milestones rather than inventing your own.

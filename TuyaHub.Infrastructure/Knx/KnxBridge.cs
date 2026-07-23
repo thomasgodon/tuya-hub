@@ -267,9 +267,10 @@ internal sealed class KnxBridge : IAsyncDisposable
     {
         try
         {
-            // Inbound group telegrams are rare, so log every one at Information — this is the primary
-            // diagnostic for "reads never answered": it shows whether a ValueRead even reaches the hub.
-            _logger.LogInformation("KNX inbound {EventType} on {Address}.", e.EventType, e.DestinationAddress);
+            // Per-telegram trace at Debug only — a live KNX bus is busy (many unmapped GAs), so logging
+            // every inbound message at Information floods the log. Raise the level to see them when
+            // diagnosing "reads never answered".
+            _logger.LogDebug("KNX inbound {EventType} on {Address}.", e.EventType, e.DestinationAddress);
 
             switch (e.EventType)
             {
@@ -294,14 +295,14 @@ internal sealed class KnxBridge : IAsyncDisposable
         {
             if (_byAddress.TryGetValue(e.DestinationAddress, out status) is false)
             {
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "KNX read for {Address} ignored — not a mapped status group address.", e.DestinationAddress);
                 return;
             }
 
             if (status.Value is null)
             {
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "KNX read for {Address} unanswered — no cached value yet (device has not reported this capability).",
                     e.DestinationAddress);
                 return;
@@ -317,7 +318,7 @@ internal sealed class KnxBridge : IAsyncDisposable
         }
 
         await bus.RespondGroupValueAsync(status.Address, status.Value, MessagePriority.Low, CancellationToken.None);
-        _logger.LogInformation("KNX read answered {Status}", status);
+        _logger.LogDebug("KNX read answered {Status}", status);
     }
 
     private async Task DispatchCommandAsync(GroupEventArgs e)

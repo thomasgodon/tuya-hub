@@ -7,20 +7,32 @@
 
 ## What replaced it
 
-The Wind Calm profile declares a connect-time baseline write (`DeviceProfile.OnConnectDps = {"66": false}`,
-set in `WindCalmProfile`). On each (re)connect, after the state-sync `DP_QUERY`, `TuyaConnection` sends
-that raw `CONTROL` once, so no subsequent LAN command beeps. It is a **blind, unconditional** write:
-- On a unit that implements DP 66 (e.g. the 3.5 `Windcalm-Windstylance`), the first write silences the
-  buzzer and it stays silent; at most one beep on a cold connect.
-- Empty for any profile that declares no `OnConnectDps` (other device types write nothing).
+The Wind Calm profile declares a connect-time baseline (`DeviceProfile.OnConnectDps = {"66": false}`, set
+in `WindCalmProfile`). On each (re)connect `TuyaConnection` **reconciles it against the device's first
+state readback** (from the connect-time `DP_QUERY`) and writes **only the DPs whose current value
+differs** — it does **not** write blindly:
+- Buzzer already off (the normal case; the 3.5 `Windcalm-Windstylance` persists DP 66 = `false`) → **no
+  write, no beep.**
+- Buzzer genuinely on → one write to silence it (the single, intended beep), then quiet.
+- A DP the device doesn't report is skipped; profiles with no `OnConnectDps` write nothing.
+
+> **Why conditional, not blind (learned the hard way).** Live testing showed the 3.5 unit **beeps on
+> *any* DP 66 write — even a redundant `{"66":false}` when it's already off** (connecting is silent; the
+> *write* is what beeps). A blind write therefore beeped on **every reconnect**, and a
+> [heartbeat bug](../../../CLAUDE.md) that flapped the connection every ~10s turned that into a beep every
+> ~10s — the original "beeps on reconnect" report. Fixed on both fronts: the heartbeat no longer flaps the
+> link, and the baseline is now a conditional reconcile (`TuyaConnection.ComputeBaselineWrites`).
+
+The reconcile outcome is logged at **Information** (`connect-time baseline already satisfied; no write
+sent` or `wrote connect-time baseline DPs [...] (state differed)`) so it is confirmable from `docker logs`.
 
 ## Hardware limit (some units can't be silenced)
 
 DP 66 is only *advisory* in the Tuya cloud schema — a given MCU may not implement it. Confirmed on the
 **`XW-FAN-215-D`** (protocol 3.4): it never reports DP 66 and silently drops a `{"66":false}` write (the
 buzzer still sounds on every command). On such units the beep is **not software-controllable**; the only
-recourse is physically muting/removing the buzzer. The connect-time write still fires there but is a
-harmless no-op.
+recourse is physically muting/removing the buzzer. The connect-time reconcile **skips** DP 66 there (the
+device never reports it, so there's nothing to match against and nothing is written).
 
 ## History
 

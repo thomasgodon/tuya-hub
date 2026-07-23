@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
@@ -40,6 +41,9 @@ internal sealed class TuyaConnection(
     /// <summary>Monotonic timestamp (ms) of the last inbound byte; drives the liveness watchdog.</summary>
     private long _lastInboundTicks;
 
+    /// <summary>Per-connection guard so the profile baseline is reconciled once, on the first state report.</summary>
+    private bool _baselineReconciled;
+
     private readonly ITuyaCodec _codec = TuyaCodecFactory.Create(name, options, connectTimeout, logger);
 
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -72,12 +76,12 @@ internal sealed class TuyaConnection(
                 // Full state sync on (re)connect so the KNX status GAs are correct immediately.
                 await SendQueryAsync(cancellationToken);
 
-                // Force any profile-declared baseline (Wind Calm silences the DP 66 buzzer) so no LAN
-                // command beeps. Blind write — inert on firmware that doesn't implement the DP.
-                if (profile.OnConnectDps.Count > 0)
-                {
-                    await WriteAsync(_codec.BuildControl(profile.OnConnectDps), cancellationToken);
-                }
+                // Arm the connect-time baseline reconcile (Wind Calm silences the DP 66 buzzer). We do NOT
+                // write blindly: some firmware answers *any* DP write with a confirmation beep, so a
+                // redundant {66:false} on a unit whose buzzer is already off beeps for nothing (and on every
+                // reconnect). Instead the first state report (from the DP_QUERY above) drives
+                // ReconcileBaselineAsync, which writes only the DPs whose current value actually differs.
+                _baselineReconciled = false;
 
                 using var loopCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 var read = ReadLoopAsync(loopCts.Token);
@@ -149,7 +153,17 @@ internal sealed class TuyaConnection(
         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         connectCts.CancelAfter(connectTimeout);
 
-        await client.ConnectAsync(options.IpAddress, options.Port, connectCts.Token);
+        try
+        {
+            await client.ConnectAsync(options.IpAddress, options.Port, connectCts.Token);
+        }
+        catch
+        {
+            // A failed/timed-out connect never reaches _client, so CloseSocket() can't dispose it —
+            // drop the socket here or every failed attempt leaks one against the module's ~3-socket cap.
+            client.Dispose();
+            throw;
+        }
 
         _client = client;
         _stream = client.GetStream();
@@ -214,7 +228,7 @@ internal sealed class TuyaConnection(
 
     private async Task HandleJsonAsync(string json, CancellationToken cancellationToken)
     {
-        DeviceReport report;
+        Dictionary<int, object> dps;
         try
         {
             var root = JObject.Parse(json);
@@ -224,7 +238,7 @@ internal sealed class TuyaConnection(
                 return;
             }
 
-            var dps = new Dictionary<int, object>();
+            dps = new Dictionary<int, object>();
             foreach (var property in dpsToken.Properties())
             {
                 if (int.TryParse(property.Name, out var id) && property.Value is JValue { Value: { } value })
@@ -232,12 +246,30 @@ internal sealed class TuyaConnection(
                     dps[id] = value;
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to interpret a status payload from device {Device}; ignoring.", name);
+            return;
+        }
 
-            if (dps.Count == 0)
-            {
-                return;
-            }
+        if (dps.Count == 0)
+        {
+            return;
+        }
 
+        // First state report after (re)connect: reconcile the profile baseline against the real device
+        // state (write only DPs that differ). Done here, not blindly at connect, so an already-correct DP
+        // is never re-written — some firmware confirms each write with a beep.
+        if (!_baselineReconciled)
+        {
+            _baselineReconciled = true;
+            await ReconcileBaselineAsync(dps, cancellationToken);
+        }
+
+        DeviceReport report;
+        try
+        {
             report = TuyaProfileCodec.ToReport(profile, dps);
         }
         catch (Exception ex)
@@ -248,6 +280,57 @@ internal sealed class TuyaConnection(
 
         await ingestion.ReportStateAsync(name, report, cancellationToken);
     }
+
+    /// <summary>
+    /// Writes the profile's <see cref="DeviceProfile.OnConnectDps"/> baseline, but only the DPs whose value
+    /// the device currently reports as different — so an already-satisfied baseline sends nothing (and
+    /// doesn't provoke a per-write confirmation beep on firmware that emits one).
+    /// </summary>
+    private async Task ReconcileBaselineAsync(IReadOnlyDictionary<int, object> currentDps, CancellationToken cancellationToken)
+    {
+        if (profile.OnConnectDps.Count == 0)
+        {
+            return;
+        }
+
+        var writes = ComputeBaselineWrites(profile.OnConnectDps, currentDps);
+        if (writes.Count == 0)
+        {
+            logger.LogInformation("Tuya device {Device}: connect-time baseline already satisfied; no write sent.", name);
+            return;
+        }
+
+        var summary = string.Join(", ", writes.Select(kv => $"{kv.Key}={kv.Value}"));
+        await WriteAsync(_codec.BuildControl(writes), cancellationToken);
+        logger.LogInformation("Tuya device {Device}: wrote connect-time baseline DPs [{Baseline}] (state differed).", name, summary);
+    }
+
+    /// <summary>
+    /// The subset of <paramref name="desired"/> baseline DPs whose value differs from the device's current
+    /// reported value. A DP the device did not report is skipped — we can't confirm it needs changing (e.g.
+    /// firmware that doesn't implement it, like the 3.4 XW-FAN-215-D and DP 66).
+    /// </summary>
+    internal static Dictionary<string, object> ComputeBaselineWrites(
+        IReadOnlyDictionary<string, object> desired,
+        IReadOnlyDictionary<int, object> currentDps)
+    {
+        var writes = new Dictionary<string, object>();
+        foreach (var (key, value) in desired)
+        {
+            if (int.TryParse(key, out var id) && currentDps.TryGetValue(id, out var current) && !ValuesEqual(current, value))
+            {
+                writes[key] = value;
+            }
+        }
+
+        return writes;
+    }
+
+    private static bool ValuesEqual(object a, object b)
+        => string.Equals(
+            Convert.ToString(a, CultureInfo.InvariantCulture),
+            Convert.ToString(b, CultureInfo.InvariantCulture),
+            StringComparison.OrdinalIgnoreCase);
 
     private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)
     {

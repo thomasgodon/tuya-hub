@@ -132,7 +132,19 @@ internal sealed class TuyaSessionCodec : ITuyaCodec
         return BuildFrame(CmdDpQueryNew, Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(envelope)));
     }
 
-    public byte[] BuildHeartbeat() => BuildFrame(CmdHeartbeat, "{}"u8.ToArray());
+    // 3.4/3.5 HEART_BEAT carries the same {gwId,devId} identifying body tinytuya sends (and that our
+    // BuildQuery already uses). A bare "{}" body — no gwId/devId — makes some firmware (observed on a 3.5
+    // unit) drop the socket on receipt, flapping the link every heartbeat. HEART_BEAT is in the
+    // no-version-header set, so (like BuildQuery) it is sent unprefixed and session-key encrypted.
+    public byte[] BuildHeartbeat()
+    {
+        var envelope = new Dictionary<string, object>
+        {
+            ["gwId"] = _options.DeviceId,
+            ["devId"] = _options.DeviceId,
+        };
+        return BuildFrame(CmdHeartbeat, Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(envelope)));
+    }
 
     public bool TryReadMessage(List<byte> buffer, out string? json)
     {
