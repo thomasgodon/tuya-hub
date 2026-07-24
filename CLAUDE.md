@@ -147,6 +147,20 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   only to the TuyaNet codec. Tests: `TuyaSessionCodecTests.Session_codec_does_not_use_a_heartbeat`
   (3.4/3.5 → false) and `TuyaNet_codec_uses_a_heartbeat` (3.1/3.3 → true).
 
+- **Post-MVP — KNX NAT / TCP tunnelling knobs (Docker "connects but buttons don't work" fix).** KNXnet/IP
+  tunnelling advertises a *local* IP in the tunnel's HPAI; Falcon auto-picks it. On a single-homed Windows
+  dev box that's correct, but in **Docker with host networking on a multi-homed host** (docker0/bridge/VPN
+  interfaces) Falcon can advertise the **wrong** local IP: the handshake completes (bus logs `Connected`)
+  yet the connection-state heartbeat and **inbound group telegrams go to an unreachable address**, so the
+  bus **flaps** (repeated `Connecting`/`Connected`, no error between) and the **KNX→Tuya command path is
+  dead** while everything else looks healthy — the canonical "works in VS, not in Docker" symptom. Fix:
+  two new `KnxOptions` — **`UseNat`** (bool, default false; empty HPAI 0.0.0.0 → gateway replies to the
+  real UDP source) and **`Protocol`** (`Auto`|`Udp`|`Tcp`, default `Auto`; `Tcp` = KNXnet/IP-v2 tunnelling,
+  no return-path problem at all, most robust in Docker when the gateway supports it) — wired into
+  `KnxBridge.OpenBusAsync` via `IpTunnelingConnectorParameters.UseNat`/`ProtocolType` (`ParseProtocol`).
+  Defaults preserve the prior behaviour (VS unchanged); the container should set `KnxOptions__UseNat=true`
+  (see `.env.example`). Verified against the shipped `Knx.Falcon.Sdk 6.4.8671` (`IpProtocol {Auto,Udp,Tcp}`).
+
 - **Post-MVP — dashboard KNX pill now tracks the bus in real time.** The pill reads
   `KnxBridge.IsConnected` at snapshot-**publish** time, and snapshots were only published on startup and
   on device state-change events — so a KNX connect that happened *between* device events (e.g. after the

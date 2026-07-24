@@ -1,5 +1,6 @@
 using Knx.Falcon;
 using Knx.Falcon.Configuration;
+using Knx.Falcon.KnxnetIp;
 using Knx.Falcon.Sdk;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -49,6 +50,31 @@ internal sealed class KnxBridge : IAsyncDisposable
         _store = BuildStore(mappings.Value, profiles.For);
         _byAddress = _store.Values.ToDictionary(status => status.Address);
         _commandsByAddress = BuildCommandBindings(mappings.Value, profiles.For);
+        LogResolvedMappings();
+    }
+
+    /// <summary>
+    /// Logs the resolved GA→device/capability tables once at startup. Config binding is the recurring
+    /// source of "connected but nothing happens": a wrong section prefix or a device <c>Name</c> that
+    /// doesn't match its <c>DeviceMappings</c> key (names are space-sensitive) silently yields no
+    /// bindings, and an inbound command on an unmapped GA is dropped without a log. This makes the
+    /// actual bindings visible so a missing/mis-keyed GA is obvious from <c>docker logs</c>.
+    /// </summary>
+    private void LogResolvedMappings()
+    {
+        var commands = string.Join(", ",
+            _commandsByAddress
+                .OrderBy(kv => kv.Key.ToString())
+                .Select(kv => $"{kv.Key}→{kv.Value.Device}/{kv.Value.Capability.Key}"));
+
+        var statuses = string.Join(", ",
+            _store
+                .OrderBy(kv => kv.Value.Address.ToString())
+                .Select(kv => $"{kv.Value.Address}→{kv.Key.Device}/{kv.Key.Capability}"));
+
+        _logger.LogInformation(
+            "KNX resolved {CommandCount} command GA(s): [{Commands}]; {StatusCount} status GA(s): [{Statuses}].",
+            _commandsByAddress.Count, commands, _store.Count, statuses);
     }
 
     /// <summary>True when the KNX bus is enabled and at least one status or command GA is mapped.</summary>
@@ -208,7 +234,15 @@ internal sealed class KnxBridge : IAsyncDisposable
 
     private async Task<KnxBus> OpenBusAsync(string? individualAddress, CancellationToken cancellationToken)
     {
-        var parameters = new IpTunnelingConnectorParameters(_options.Host, _options.Port);
+        var parameters = new IpTunnelingConnectorParameters(_options.Host, _options.Port)
+        {
+            // NAT / multi-homed-host mode: with an empty local HPAI the gateway routes its replies
+            // (heartbeat + inbound telegrams) back to the actual UDP source, so tunnelling works from a
+            // container even when Falcon would otherwise advertise the wrong local IP. See KnxOptions.
+            UseNat = _options.UseNat,
+            ProtocolType = ParseProtocol(_options.Protocol),
+        };
+
         if (individualAddress is not null)
         {
             // Tunneling-v2 slot address; fall back to any free address if this one is already in use.
@@ -231,6 +265,14 @@ internal sealed class KnxBridge : IAsyncDisposable
 
         return bus;
     }
+
+    // Maps the configured transport string to Falcon's enum; unset/unrecognised → Auto.
+    private static IpProtocol ParseProtocol(string? protocol) => protocol?.Trim().ToLowerInvariant() switch
+    {
+        "udp" => IpProtocol.Udp,
+        "tcp" => IpProtocol.Tcp,
+        _ => IpProtocol.Auto,
+    };
 
     private void OnConnectionStateChanged(object? sender, EventArgs e)
     {
