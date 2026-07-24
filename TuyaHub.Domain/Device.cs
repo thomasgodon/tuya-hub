@@ -13,7 +13,7 @@ namespace TuyaHub.Domain;
 /// Two directions meet here:
 /// <list type="bullet">
 /// <item><b>Command path (KNX → device):</b> the command methods (<see cref="SetFanPower"/>,
-/// <see cref="StepFanSpeed"/>, …) are pure — they read current known state and return the intended
+/// <see cref="SetFanSpeedPercent"/>, …) are pure — they read current known state and return the intended
 /// <see cref="DeviceCommand"/> without mutating state or raising events. This guarantees the bridge
 /// never echoes an <i>unconfirmed</i> command back to KNX.</item>
 /// <item><b>Feedback path (device → KNX):</b> <see cref="ApplyReportedState"/> is the sole state
@@ -73,25 +73,29 @@ public sealed class Device : IDevice
     }
 
     /// <summary>
-    /// Relative fan-speed step from a KNX dim telegram (UC-02). Rules: dim-up from off turns the fan
-    /// on <i>and</i> sets level 1; dim-down at level 1 stays at 1 (the fan is switched off only via
-    /// the power object); the level is clamped to 1..6.
+    /// Absolute fan speed from a KNX percentage (DPT 5.001, UC-02). <c>0 %</c> turns the fan off;
+    /// <c>1..100 %</c> maps onto levels 1..6 (see <see cref="SpeedLevel.FromPercent"/>) and turns the
+    /// fan on if it was off. Returns <see cref="DeviceCommand.Empty"/> when nothing needs to change.
     /// </summary>
-    public DeviceCommand StepFanSpeed(bool up)
+    public DeviceCommand SetFanSpeedPercent(int percent)
     {
         lock (_gate)
         {
-            if (!Fan.Power)
+            if (percent <= 0)
             {
-                // Dim-up from off: power on and set the lowest level. Dim-down while off: nothing.
-                return up
-                    ? new DeviceCommand { FanPower = true, FanSpeed = SpeedLevel.Lowest }
-                    : DeviceCommand.Empty;
+                // 0 %: switch off (nothing to send if already off — the level is left untouched).
+                return Fan.Power ? new DeviceCommand { FanPower = false } : DeviceCommand.Empty;
             }
 
-            var target = up ? Fan.Speed.Up() : Fan.Speed.Down();
+            var target = SpeedLevel.FromPercent(percent);
+            if (!Fan.Power)
+            {
+                // Setting a speed while off turns the fan on at that level.
+                return new DeviceCommand { FanPower = true, FanSpeed = target };
+            }
+
             return target == Fan.Speed
-                ? DeviceCommand.Empty            // already at the rail (1 or 6): nothing to send
+                ? DeviceCommand.Empty            // already at that level: nothing to send
                 : new DeviceCommand { FanSpeed = target };
         }
     }

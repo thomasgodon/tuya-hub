@@ -154,7 +154,7 @@ disables** that function.
 "DeviceMappings": {
   "LivingRoomFan": {
     "FanPower": "1/1/1",              "FanPowerStatus": "1/1/2",
-    "FanSpeedStep": "1/1/3",          "FanSpeedStatus": "1/1/4",
+    "FanSpeed": "1/1/3",              "FanSpeedStatus": "1/1/4",
     "FanDirection": "1/1/5",          "FanDirectionStatus": "1/1/6",
     "FanTimer": "1/1/7",              "FanTimerStatus": "1/1/8",
     "LightPower": "1/1/9",            "LightPowerStatus": "1/1/10",
@@ -170,8 +170,8 @@ Valid mapping keys for the **wind-calm** profile, with their Tuya DP and KNX DPT
 | Mapping key | Direction | Tuya DP | KNX DPT |
 |-------------|-----------|---------|---------|
 | `FanPower` / `FanPowerStatus` | ⇄ | 60 | 1.001 switch |
-| `FanSpeedStep` | KNX → device | 62 | **3.007** dim step (relative, no feedback) |
-| `FanSpeedStatus` | device → KNX | 62 | **5.010** count (1–6; 0 = off) |
+| `FanSpeed` | KNX → device | 62 | **5.001** % (absolute; 0 % = off, 1–100 % → levels 1–6) |
+| `FanSpeedStatus` | device → KNX | 62 | **5.001** % (0 % = off; levels 1–6 → 17/33/50/67/83/100 %) |
 | `FanDirection` / `FanDirectionStatus` | ⇄ | 63 | 1.001 (0 = forward/summer, 1 = reverse/winter) |
 | `FanTimer` / `FanTimerStatus` | ⇄ | 64 | **7.006** minutes (0–540) |
 | `LightPower` / `LightPowerStatus` | ⇄ | 20 | 1.001 switch |
@@ -181,9 +181,10 @@ Valid mapping keys for the **wind-calm** profile, with their Tuya DP and KNX DPT
 
 Notes:
 
-- **Fan speed is relative.** The command GA is a 3.007 dim-step telegram (±1 level), so current speed is
-  reported on the **separate** 5.010 status GA. Dim-up from off turns the fan on at level 1; dim-down at
-  level 1 stays at 1 (power off is only via `FanPower`).
+- **Fan speed is an absolute percentage.** The command GA takes a 5.001 % value that maps onto the six
+  device levels (`ceil(% / 100 × 6)`, clamped 1–6); **0 % turns the fan off**. Setting a speed while off
+  turns the fan on at that level. Current speed is reported on the **separate** 5.001 % status GA
+  (0 % = off; levels 1–6 read back as 17/33/50/67/83/100 %). There is no relative dim-step.
 - **The light is on/off + CCT only — no dimming.** The Wind Calm hardware does not honour a brightness
   write (DP 22), so brightness is not exposed. Use `LightPower` for on/off and `LightCct` for the
   3-step colour temperature.

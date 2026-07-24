@@ -52,10 +52,9 @@ internal static class WindCalmProfile
                 EncodeDp = v => ((SpeedLevel)v).Value, // int, never string
                 DecodeDp = raw => Convert.ToInt32(raw) >= 1 ? (object?)SpeedLevel.Clamp(Convert.ToInt32(raw)) : null,
                 StatusMappingKey = "FanSpeedStatus",
-                EncodeStatus = v => KnxDpt.Count(v.AsInt()),
-                CommandMappingKey = "FanSpeedStep",
-                BuildCommand = (device, payload) =>
-                    KnxDpt.DecodeDimStep(payload) is { } up ? new StepFanSpeedCommand(device, up) : null,
+                EncodeStatus = v => KnxDpt.Percent(SpeedLevel.ToPercent(v.AsInt())),
+                CommandMappingKey = "FanSpeed",
+                BuildCommand = (device, payload) => new SetFanSpeedCommand(device, KnxDpt.DecodePercent(payload)),
             },
             new CapabilityBinding
             {

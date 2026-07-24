@@ -134,7 +134,7 @@ distinguishes **command** vs **status** GAs.
   "DeviceMappings": {
     "LivingRoomFan": {                // key == TuyaOptions.Devices[].Name
       "FanPower": "1/1/1",            "FanPowerStatus": "1/1/2",
-      "FanSpeedStep":    "1/1/3",     "FanSpeedStatus": "1/1/4",
+      "FanSpeed":        "1/1/3",     "FanSpeedStatus": "1/1/4",  // post-MVP: absolute 5.001 % (was 3.007 "FanSpeedStep")
       "FanDirection": "1/1/5",        "FanDirectionStatus": "1/1/6",
       "FanTimer": "1/1/7",            "FanTimerStatus": "1/1/8",
       "LightPower": "1/1/9",          "LightPowerStatus": "1/1/10",

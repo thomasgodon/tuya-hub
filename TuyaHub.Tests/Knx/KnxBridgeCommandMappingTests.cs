@@ -25,7 +25,7 @@ public class KnxBridgeCommandMappingTests
         var mapping = new DeviceMapping
         {
             ["FanPower"] = "1/1/1",
-            ["FanSpeedStep"] = "1/1/3",
+            ["FanSpeed"] ="1/1/3",
             ["FanDirection"] = "1/1/5",
             ["FanTimer"] = "1/1/7",
             ["LightPower"] = "1/1/9",
@@ -48,7 +48,7 @@ public class KnxBridgeCommandMappingTests
         var bindings = BuildBindings(new DeviceMapping
         {
             ["FanPower"] = "1/1/1",
-            ["FanSpeedStep"] = "",           // disabled
+            ["FanSpeed"] ="",           // disabled
             ["FanDirection"] = "   ", // whitespace also disables
         });
 

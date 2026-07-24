@@ -25,7 +25,7 @@ public class WindCalmWiringGoldenTests
         {
             ["FanPower"] = "1/1/1",
             ["FanPowerStatus"] = "1/1/2",
-            ["FanSpeedStep"] = "1/1/3",
+            ["FanSpeed"] = "1/1/3",
             ["FanSpeedStatus"] = "1/1/4",
             ["FanDirection"] = "1/1/5",
             ["FanDirectionStatus"] = "1/1/6",

@@ -7,7 +7,7 @@ namespace TuyaHub.Application.Commands;
 
 public sealed record SetFanPowerCommand(DeviceName Device, bool On) : IDeviceCommand;
 
-public sealed record StepFanSpeedCommand(DeviceName Device, bool Up) : IDeviceCommand;
+public sealed record SetFanSpeedCommand(DeviceName Device, int Percent) : IDeviceCommand;
 
 public sealed record SetFanDirectionCommand(DeviceName Device, FanDirection Direction) : IDeviceCommand;
 
@@ -21,12 +21,12 @@ public sealed class SetFanPowerHandler(
         => device.SetFanPower(request.On);
 }
 
-public sealed class StepFanSpeedHandler(
-    IDeviceRegistry registry, IDeviceGateway gateway, ILogger<StepFanSpeedHandler> logger)
-    : DeviceCommandHandler<StepFanSpeedCommand>(registry, gateway, logger)
+public sealed class SetFanSpeedHandler(
+    IDeviceRegistry registry, IDeviceGateway gateway, ILogger<SetFanSpeedHandler> logger)
+    : DeviceCommandHandler<SetFanSpeedCommand>(registry, gateway, logger)
 {
-    protected override DeviceCommand Apply(Device device, StepFanSpeedCommand request)
-        => device.StepFanSpeed(request.Up);
+    protected override DeviceCommand Apply(Device device, SetFanSpeedCommand request)
+        => device.SetFanSpeedPercent(request.Percent);
 }
 
 public sealed class SetFanDirectionHandler(

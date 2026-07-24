@@ -67,10 +67,25 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   **DPT 3.007** command, coexisting with the existing absolute-% `LightCct` command (5.001). Added a
   command-only `WindCalmCapabilities.LightCctStep` key + a *second* `WindCalmProfile` `CapabilityBinding`
   (no dps/status of its own — `CommandMappingKey = "LightCctStep"`, decodes via `KnxDpt.DecodeDimStep`,
-  reuses DP 23's encoding/status), `StepLightCctCommand`/handler mirroring `StepFanSpeed`, and
+  reuses DP 23's encoding/status), `StepLightCctCommand`/handler mirroring the other command/handlers, and
   `Device.CycleLightColourTemperature(up)` + `ColourTemperature.Cycle(up)` — index navigation over
   `Steps {0,500,1000}` that **wraps** at the rails (unlike fan speed, which clamps). Shipped GA `1/1/16`.
   Table-driven: no `KnxCommandTranslator`/`KnxBridge` changes. See UC-07 (07c).
+
+- **Post-MVP — fan speed switched to absolute % (was relative 3.007 step).** Fan speed was originally
+  exposed as a relative **DPT 3.007** dim-step command (`FanSpeedStep` GA, ±1 level, magnitude ignored)
+  plus a raw **DPT 5.010** counter status carrying the level 0–6 (UC-02). A KNX visualization typed those
+  group objects as **5.001 scaling %**, so the raw level byte read back as `round(level × 100 / 255) ≈ 1%`
+  ("send 100, get 1%"), and a % slider couldn't set an absolute speed at all. Fixed by moving fan speed to
+  **absolute DPT 5.001 %** on both paths and **dropping the relative step end-to-end**: the `FanSpeed`
+  binding now decodes/encodes via the existing `KnxDpt.Percent`/`DecodePercent` (as `LightCct` already
+  does); `SpeedLevel.FromPercent`/`ToPercent` do the %↔level 1–6 mapping (`ceil` in, `round` out,
+  `0 %` = off); `StepFanSpeedCommand`/`Device.StepFanSpeed` were replaced by `SetFanSpeedCommand`/
+  `Device.SetFanSpeedPercent` (`0 %` → power off, `1–100 %` → level + power-on if off, redundant → empty).
+  The command mapping key was renamed `FanSpeedStep` → **`FanSpeed`** (GA `1/1/3` unchanged;
+  `FanSpeedStatus` `1/1/4` unchanged, only its DPT changes). Table-driven — no `KnxDpt`/`KnxBridge`/
+  `KnxCommandTranslator` structural changes; the dashboard still shows the raw 0–6 level. Config
+  (`appsettings.json`, `.env.example`) and tests updated. See UC-02 (superseded banner).
 
 - **Post-MVP — KNX boolean read-response fixed (DPT 1.001 1-bit sizing).** `GroupValueRead` on a status
   GA was already answered from the cached value (`KnxBridge.AnswerReadAsync`, FR-7/UC-08b), but **boolean
@@ -289,10 +304,12 @@ These are firmware/protocol quirks the code must respect — see `docs/use-cases
 
 - **DP 62 (fan speed) must be sent as an integer `1..6`, never a string** — the #1 cause of silent
   speed failures.
-- **Fan power (DP 60) and speed (DP 62) are independent DPs.** Adopted dim rules: dim-up from off →
-  turn fan on **and** set level 1; dim-down at level 1 → stay at 1 (off only via the power object).
-- Fan speed uses KNX **DPT 3.007** (relative dim, no feedback) for command and a **separate DPT 5.010**
-  status GA (1–6; 0 = off) for feedback.
+- **Fan power (DP 60) and speed (DP 62) are independent DPs**, but the KNX % command spans both:
+  `0 %` turns the fan off (writes DP 60 = false), `1–100 %` sets a level (and turns the fan on if it
+  was off).
+- Fan speed uses KNX **DPT 5.001 %** (absolute) for **both** command and status: command
+  `ceil(% / 100 × 6)` → level 1–6 (`0 %` = off); status level 1–6 → `round(level × 100 / 6)` %
+  (`0 %` = off). See the Post-MVP bullet below.
 - **Timer (DP 64) is MCU-owned** — the bridge sets/reads remaining minutes; it never counts down locally.
 - **CCT (DP 23)** exposes only 3 discrete steps (0/500/1000); writing it can flicker the light — write
   only on an actual step change.

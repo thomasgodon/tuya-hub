@@ -34,5 +34,20 @@ public readonly record struct SpeedLevel
 
     public SpeedLevel Down() => Clamp(Value - 1);
 
+    /// <summary>
+    /// Maps a raw status level (0 = off, 1..6) to a KNX DPT 5.001 percentage: 0 → 0 %, otherwise
+    /// <c>round(level * 100 / Max)</c> (1→17, 2→33, 3→50, 4→67, 5→83, 6→100).
+    /// </summary>
+    public static int ToPercent(int level)
+        => level <= 0 ? 0 : (int)Math.Round(level * 100.0 / Max, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// Maps a KNX percentage (1..100) to a level 1..6 via <c>ceil(percent / 100 * Max)</c>
+    /// (1–16%→1, 17–33%→2, 34–50%→3, 51–67%→4, 68–83%→5, 84–100%→6). The 0 % case ("fan off") is the
+    /// caller's concern — fan power is a separate DP.
+    /// </summary>
+    public static SpeedLevel FromPercent(int percent)
+        => Clamp((int)Math.Ceiling(Math.Clamp(percent, 1, 100) * Max / 100.0));
+
     public override string ToString() => Value.ToString();
 }

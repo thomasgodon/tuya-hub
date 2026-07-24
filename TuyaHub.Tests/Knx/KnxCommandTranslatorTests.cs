@@ -38,20 +38,14 @@ public class KnxCommandTranslatorTests
     }
 
     [Theory]
-    [InlineData(0x09, true)]    // up
-    [InlineData(0x01, false)]   // down
-    public void FanSpeedStep_maps_to_step_fan_speed(byte payload, bool expectedUp)
+    [InlineData(0xFF, 100)]   // full scale
+    [InlineData(0x80, 50)]    // mid scale
+    [InlineData(0x00, 0)]     // off
+    public void FanSpeed_maps_scaled_percent(byte payload, int expectedPercent)
     {
-        var command = Assert.IsType<StepFanSpeedCommand>(Translate(WindCalmCapabilities.FanSpeed, payload));
-        Assert.Equal(expectedUp, command.Up);
-    }
-
-    [Theory]
-    [InlineData(0x00)]   // down break
-    [InlineData(0x08)]   // up break
-    public void FanSpeedStep_break_produces_no_command(byte payload)
-    {
-        Assert.Null(Translate(WindCalmCapabilities.FanSpeed, payload));
+        var command = Assert.IsType<SetFanSpeedCommand>(Translate(WindCalmCapabilities.FanSpeed, payload));
+        Assert.Equal(Fan, command.Device);
+        Assert.Equal(expectedPercent, command.Percent);
     }
 
     [Theory]

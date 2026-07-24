@@ -39,22 +39,22 @@ Command (KNX → Tuya) and feedback (Tuya → KNX) are **separate group addresse
 | Function | DP | Command GA (DPT) | Status GA (DPT) |
 |----------|----|------------------|-----------------|
 | Fan power | 60 | 1.001 switch | 1.001 |
-| Fan speed | 62 | **3.007** dim step (up/down) | **5.010** count (1–6; 0 = off) |
+| Fan speed | 62 | **5.001** % (absolute; 0 % = off) | **5.001** % (0 % = off; levels 1–6 → 17…100 %) |
 | Fan direction | 63 | 1.001 (0 = forward/summer, 1 = reverse/winter) | 1.001 |
 | Fan timer | 64 | 7.006 minutes | 7.006 remaining |
 | Light power | 20 | 1.001 switch | 1.001 |
 | Light CCT *(optional)* | 23 | 5.001 % → 3 steps | 5.001 % |
 
-**Speed is relative:** the bridge receives 4-bit dim telegrams (DPT 3.007) and walks the level
-`1..6`. Because a 3.007 object cannot carry feedback, current speed is reported on a **separate
-5.010 status GA**.
+**Speed is an absolute percentage:** the bridge receives a DPT 5.001 % on the command GA and maps it
+onto the level `1..6` (`ceil(% / 100 × 6)`; `0 %` = off). Current speed is reported back as a % on a
+**separate 5.001 status GA** (`0 %` = off; levels 1–6 → 17/33/50/67/83/100 %). See UC-02.
 
 ## Index
 
 | ID | Use case | Endpoint | Primary actor |
 |----|----------|----------|---------------|
 | [UC-01](UC-01-fan-on-off.md) | Fan on/off from KNX | Fan | KNX installation |
-| [UC-02](UC-02-fan-speed-step.md) | Fan speed step up/down from KNX | Fan | KNX installation |
+| [UC-02](UC-02-fan-speed-step.md) | Fan speed (absolute %) from KNX | Fan | KNX installation |
 | [UC-03](UC-03-fan-direction.md) | Fan direction (summer/winter) from KNX | Fan | KNX installation |
 | [UC-04](UC-04-fan-timer.md) | Fan countdown timer from KNX | Fan | KNX installation |
 | [UC-05](UC-05-light-on-off.md) | Light on/off from KNX | Light | KNX installation |
