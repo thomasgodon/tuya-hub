@@ -103,15 +103,20 @@ The solution exists (4 projects + tests, per the PRD architecture). Completed mi
   outcome (answered / no-cached-value / unmapped GA) is logged (raise the level to see them — see the
   KNX-logging bullet below), and `AnswerReadAsync` captures `_bus` into a local to avoid a reconnect race.
 
-- **Post-MVP — KNX per-telegram logging moved to Debug (was flooding the log).** A live KNX bus is busy
-  (many broadcasts on GAs the hub doesn't map); logging every inbound telegram at **Information** produced
-  ~15+ lines/s in `docker logs`. The per-message KNX logs — inbound telegram (`KNX inbound … on …`) and the
-  read-answer outcomes (unmapped GA / no-cached-value / answered) — are now **`Debug`**. What stays at
-  **Information**: connection lifecycle (`Connecting`/`Connected to KNX interface`). What stays at
-  **Warning**: real problems (write failed, bus dropped, read unanswered because bus down, command with no
-  value, inbound-handler exception). Outbound write/command logs were already `Debug`. So at the default
-  level KNX shows only connect/disconnect + genuine errors; set the KNX log level to `Debug` to trace
-  telegrams when diagnosing read/command issues.
+- **Post-MVP — KNX per-telegram logging removed; state changes now logged at Information.** A live KNX
+  bus is busy (many broadcasts on GAs the hub doesn't map); the per-telegram Debug logs still flooded
+  `docker logs` whenever KNX was raised to `Debug` to trace commands. The pure bus-noise lines were
+  **removed** (`KnxBridge`): the inbound-telegram trace (`KNX inbound … on …`), the "unmapped GA" read
+  (now a silent ignore), and the "read answered" line — so even at `Debug` the noise is gone. What stays:
+  **Warning** for real problems (write failed, bus dropped, read unanswered because bus down, command with
+  no value, inbound-handler exception); **Debug** for the still-useful low-volume lines (outbound write,
+  no-cached-value read gated to mapped GAs, inbound `KNX command … dispatched`); **Information** for
+  connection lifecycle. Separately, **actual fan/light state changes are now logged at `Information`** from
+  `DeviceStateIngestionService.ReportStateAsync` — it iterates the `DeviceCapabilityChanged` events
+  `Device.ApplyReportedState` returns (already change-filtered — one line per genuine change, plus a
+  one-time first-report baseline burst, never per poll) and logs `Device {Device} {Capability} changed to
+  {Value}.`. So at the default level `docker logs` shows connect/disconnect, genuine errors, and every
+  fan/light state change.
 
 - **Post-MVP — 3.5 heartbeat frame fixed (was flapping the connection every ~10s).** The hand-rolled
   session codec's `TuyaSessionCodec.BuildHeartbeat` sent an encrypted **`"{}"`** body for the periodic

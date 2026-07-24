@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using TuyaHub.Application.Abstractions;
 using TuyaHub.Domain;
+using TuyaHub.Domain.Events;
 using TuyaHub.Domain.ValueObjects;
 
 namespace TuyaHub.Application;
@@ -24,7 +25,17 @@ internal sealed class DeviceStateIngestionService(
             return Task.CompletedTask;
         }
 
-        return PublishAll(aggregate.ApplyReportedState(report), cancellationToken);
+        var events = aggregate.ApplyReportedState(report);
+
+        // Log each genuine fan/light state change once — ApplyReportedState only returns capabilities
+        // whose value actually changed (or the first-report baseline), never one line per poll.
+        foreach (var change in events.OfType<DeviceCapabilityChanged>())
+        {
+            logger.LogInformation("Device {Device} {Capability} changed to {Value}.",
+                device, change.Capability, change.Value);
+        }
+
+        return PublishAll(events, cancellationToken);
     }
 
     public Task ReportConnectivityAsync(DeviceName device, bool online, CancellationToken cancellationToken)

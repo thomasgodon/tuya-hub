@@ -309,11 +309,9 @@ internal sealed class KnxBridge : IAsyncDisposable
     {
         try
         {
-            // Per-telegram trace at Debug only — a live KNX bus is busy (many unmapped GAs), so logging
-            // every inbound message at Information floods the log. Raise the level to see them when
-            // diagnosing "reads never answered".
-            _logger.LogDebug("KNX inbound {EventType} on {Address}.", e.EventType, e.DestinationAddress);
-
+            // No per-telegram trace here: a live KNX bus carries many broadcasts on GAs the hub doesn't
+            // map, so logging every inbound message (even at Debug) floods docker logs. Command dispatch
+            // and genuine problems are logged at their own sites below.
             switch (e.EventType)
             {
                 case GroupEventType.ValueRead:
@@ -337,9 +335,7 @@ internal sealed class KnxBridge : IAsyncDisposable
         {
             if (_byAddress.TryGetValue(e.DestinationAddress, out status) is false)
             {
-                _logger.LogDebug(
-                    "KNX read for {Address} ignored — not a mapped status group address.", e.DestinationAddress);
-                return;
+                return; // Read for a GA we don't map — ignore silently (bus noise; not logged).
             }
 
             if (status.Value is null)
@@ -360,7 +356,6 @@ internal sealed class KnxBridge : IAsyncDisposable
         }
 
         await bus.RespondGroupValueAsync(status.Address, status.Value, MessagePriority.Low, CancellationToken.None);
-        _logger.LogDebug("KNX read answered {Status}", status);
     }
 
     private async Task DispatchCommandAsync(GroupEventArgs e)
