@@ -29,7 +29,8 @@ public class LightCctProbe(ITestOutputHelper output)
         Name = "VentilatorVictor",
         IpAddress = "192.168.0.194",
         DeviceId = "bf7c7c541fec5351d5pxss",
-        LocalKey = "HbG@mk(sRKPk1+sB",
+        // Never commit the real key. Paste it here locally to run the probe, then revert.
+        LocalKey = "REPLACE_WITH_LOCAL_KEY",
         ProtocolVersion = "3.5",
         Port = 6668,
     };
