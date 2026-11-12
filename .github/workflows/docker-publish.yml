@@ -33,9 +33,8 @@ jobs:
       with:
         dotnet-version: '10.0.x'
 
-    # LiveProbe tests talk to a real device on the LAN and can never pass on a runner.
     - name: Run tests
-      run: dotnet test TuyaHub.slnx -c Release --filter "Category!=LiveProbe"
+      run: dotnet test TuyaHub.slnx -c Release
 
   build-and-push:
     # No image is built unless the tests pass.

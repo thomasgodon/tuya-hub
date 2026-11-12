@@ -384,10 +384,9 @@ so a failing test means no image):
 gh release create v0.1.0 --generate-notes
 ```
 
-- **Tests in CI**: `dotnet test TuyaHub.slnx -c Release --filter "Category!=LiveProbe"`. Tests that
-  need a real device on the LAN must carry `[Trait("Category", "LiveProbe")]` or they will block every
-  image build (currently only the throwaway `TuyaHub.Tests/Tuya/LightCctProbe.cs`). Note a plain local
-  `dotnet test` still runs them — and drives the real device.
+- **Tests in CI**: `dotnet test TuyaHub.slnx -c Release` — the whole suite. Never commit a test that
+  needs a real device on the LAN (a live probe): it can't pass on a runner, so it blocks every image
+  build — and never hardcode a device `LocalKey` in the repo (it is public).
 
 The image is built from the root `Dockerfile` (linux/amd64), tagged via `docker/metadata-action`, and
 pushed with the built-in `GITHUB_TOKEN` (`packages: write`), so no secret setup is needed.
