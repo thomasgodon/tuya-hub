@@ -1,7 +1,8 @@
 services:
   tuya-hub:
     # Pulls the image published to GHCR by .github/workflows/docker-publish.yml
-    # on each `vX.Y.Z` tag push. Run `docker compose pull` to fetch a new
+    # on each published GitHub Release (`:latest`). Every code commit to main
+    # is also published as `:unstable`. Run `docker compose pull` to fetch a new
     # release. For local development you can still `docker build -t tuya-hub .`.
     image: ghcr.io/thomasgodon/tuya-hub:latest
     container_name: tuya-hub

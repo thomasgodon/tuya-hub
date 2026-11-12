@@ -1,12 +1,45 @@
 name: Docker Publish
 
+# Two publish paths, both gated on the test suite:
+#   - push to main that touches code  -> ghcr.io/thomasgodon/tuya-hub:unstable
+#   - GitHub Release published        -> :{version}, :{major}.{minor}, :latest
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'TuyaHub*/**'
+      - 'TuyaHub.slnx'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/docker-publish.yml'
+  release:
+    types:
+      - published
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    # LiveProbe tests talk to a real device on the LAN and can never pass on a runner.
+    - name: Run tests
+      run: dotnet test TuyaHub.slnx -c Release --filter "Category!=LiveProbe"
+
   build-and-push:
+    # No image is built unless the tests pass.
+    needs: test
     runs-on: ubuntu-latest
 
     permissions:
@@ -29,10 +62,14 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: ghcr.io/thomasgodon/tuya-hub
+        # Disable the action's automatic `latest` handling; tags are explicit below.
+        flavor: |
+          latest=false
         tags: |
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=raw,value=latest
+          type=raw,value=unstable,enable=${{ github.event_name == 'push' }}
+          type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+          type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+          type=raw,value=latest,enable=${{ github.event_name == 'release' }}
 
     - name: Build and push image
       uses: docker/build-push-action@v6

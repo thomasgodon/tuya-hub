@@ -361,21 +361,36 @@ The host ships as a container (`Dockerfile`, `docker-compose.yml`, `.env.example
   first: `docker build -t tuya-hub:local .` then
   `docker run --rm --network host --env-file .env tuya-hub:local`.
 
-## Releasing (versioned Docker publish)
+## Releasing (Docker publish)
 
-Deployment images are published to **GitHub Container Registry** by
-`.github/workflows/docker-publish.yml`, mirroring the DsmrHub sibling repo. There is no version in
-any `.csproj` — the git tag *is* the version. To cut a release:
+Images are published to **GitHub Container Registry** (`ghcr.io/thomasgodon/tuya-hub`) by
+`.github/workflows/docker-publish.yml`. There is no version in any `.csproj` — the release tag *is*
+the version. Two triggers, **both gated on the test suite** (the `build-and-push` job `needs: test`,
+so a failing test means no image):
+
+| Trigger | Image tags |
+|---|---|
+| Push to `main` that touches code | `unstable` |
+| GitHub Release **published** | `{version}` (e.g. `0.1.0`), `{major}.{minor}` (`0.1`), `latest` |
+
+- **Code change only**: the `main` trigger has a `paths` filter (`TuyaHub*/**`, `TuyaHub.slnx`,
+  `Dockerfile`, `.dockerignore`, the workflow file). Docs-only commits (`*.md`, `docs/**`,
+  `.env.example`, `docker-compose.yml`) build nothing.
+- **Cut a release**: publish a GitHub Release with a `vX.Y.Z` tag (UI, or the command below). A bare
+  `git push origin v0.1.0` no longer publishes — the trigger is the release, not the tag. Pre-releases
+  also get `latest`.
 
 ```pwsh
-git tag v0.1.0
-git push origin v0.1.0
+gh release create v0.1.0 --generate-notes
 ```
 
-Pushing a `v*` tag is the sole trigger. The workflow builds the root `Dockerfile` (linux/amd64) and
-pushes `ghcr.io/thomasgodon/tuya-hub` tagged `{version}` (e.g. `0.1.0`), `{major}.{minor}` (`0.1`),
-and `latest` — via `docker/metadata-action`, authenticated with the built-in `GITHUB_TOKEN`
-(`packages: write`), so no secret setup is needed.
+- **Tests in CI**: `dotnet test TuyaHub.slnx -c Release --filter "Category!=LiveProbe"`. Tests that
+  need a real device on the LAN must carry `[Trait("Category", "LiveProbe")]` or they will block every
+  image build (currently only the throwaway `TuyaHub.Tests/Tuya/LightCctProbe.cs`). Note a plain local
+  `dotnet test` still runs them — and drives the real device.
+
+The image is built from the root `Dockerfile` (linux/amd64), tagged via `docker/metadata-action`, and
+pushed with the built-in `GITHUB_TOKEN` (`packages: write`), so no secret setup is needed.
 
 **One-time step:** the first publish creates a **private** GHCR package. Make it public
 (GitHub → repo → Packages → tuya-hub → Package settings) or `docker login ghcr.io` on the LAN host

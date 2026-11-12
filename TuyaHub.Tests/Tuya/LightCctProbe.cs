@@ -16,7 +16,10 @@ namespace TuyaHub.Tests.Tuya;
 /// does the device change its own colour temperature on a power cycle? Run explicitly:
 ///   dotnet test --filter FullyQualifiedName~LightCctProbe
 /// Delete when done.
+/// Tagged <c>Category=LiveProbe</c>: it needs the real device on the LAN, so CI excludes it
+/// (<c>--filter "Category!=LiveProbe"</c> in <c>.github/workflows/docker-publish.yml</c>).
 /// </summary>
+[Trait("Category", "LiveProbe")]
 public class LightCctProbe(ITestOutputHelper output)
 {
     private const string LogPath = @"C:\Users\thoma\AppData\Local\Temp\claude\C--Users-thoma-source-repos-thomasgodon-tuya-hub\a993db75-3d31-4224-a6e2-72f173e5228c\scratchpad\cct-probe.log";
